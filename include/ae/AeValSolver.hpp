@@ -1393,6 +1393,28 @@ namespace ufo
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
+    outs()<<"Printing original SMT formula: "<<s<<endl;
+    ExprSet E, D, G, GE, L, LE, temp;
+    getConj(s, temp);
+    for(auto t : temp){
+      if(isOpX<EQ>(t)) E.insert(t);
+      else if(isOpX<NEQ>(t)) D.insert(t);
+      else if(isOpX<GT>(t)) G.insert(t);
+      else if(isOpX<GEQ>(t)) GE.insert(t);
+      else if(isOpX<LT>(t)) L.insert(t);
+      else if(isOpX<LEQ>(t)) LE.insert(t);
+      else outs()<<"Insertion ERROR\n";
+    }
+    outs()<<"Printing all sets: ";
+    for(auto t : E) outs()<<t<<'\t';
+    for(auto t : D) outs()<<t<<'\t';
+    for(auto t : G) outs()<<t<<'\t';
+    for(auto t : GE) outs()<<t<<'\t';
+    for(auto t : L) outs()<<t<<'\t';
+    for(auto t : LE) outs()<<t<<'\t';
+    outs()<<endl;
+    exit(0);
+
     ExprSet t_quantified;
     if (t == NULL)
     {
