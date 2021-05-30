@@ -1393,25 +1393,33 @@ namespace ufo
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
-    outs()<<"Printing original SMT formula: "<<s<<endl;
+    outs()<<"Printing original SMT formula:\n"<<*s<<endl<<endl;
     ExprSet E, D, G, GE, L, LE, temp;
     getConj(s, temp);
     for(auto t : temp){
       if(isOpX<EQ>(t)) E.insert(t);
-      else if(isOpX<NEQ>(t)) D.insert(t);
-      else if(isOpX<GT>(t)) G.insert(t);
+      else if(isOpX<NEG>(t)){
+        if(isOpX<EQ>(mkNeg(t))) //Negate t, then check if it's EQ, if so, it's NEQ
+          D.insert(t);
+      }else if(isOpX<GT>(t)) G.insert(t);
       else if(isOpX<GEQ>(t)) GE.insert(t);
       else if(isOpX<LT>(t)) L.insert(t);
       else if(isOpX<LEQ>(t)) LE.insert(t);
       else outs()<<"Insertion ERROR\n";
     }
-    outs()<<"Printing all sets: ";
-    for(auto t : E) outs()<<t<<'\t';
-    for(auto t : D) outs()<<t<<'\t';
-    for(auto t : G) outs()<<t<<'\t';
-    for(auto t : GE) outs()<<t<<'\t';
-    for(auto t : L) outs()<<t<<'\t';
-    for(auto t : LE) outs()<<t<<'\t';
+    // outs()<<"Printing all sets: ";
+    outs()<<"Following are the 6 divided formulas:\nE: ";
+    for(auto t : E) outs()<<t;
+    outs()<<"\nD: ";
+    for(auto t : D) outs()<<t;
+    outs()<<"\nG: ";
+    for(auto t : G) outs()<<t;
+    outs()<<"\nGE: ";
+    for(auto t : GE) outs()<<t;
+    outs()<<"\nL: ";
+    for(auto t : L) outs()<<t;
+    outs()<<"\nLE: ";
+    for(auto t : LE) outs()<<t;
     outs()<<endl;
     exit(0);
 
