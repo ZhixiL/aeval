@@ -1413,7 +1413,7 @@ namespace ufo
       }
 
       if(notFlag){
-        if(isOpX<EQ>(t)) //Negate t, then check if it's EQ, if so, it's NEQ
+        if(isOpX<EQ>(t)) //Negated t. Check if it's EQ, if so, it's NEQ
           D.insert(flag ? mkNeg(t) : mkNeg(mk<EQ>(left,right)));
       }else if(isOpX<EQ>(t)) E.insert(flag ? t : mk<EQ>(left,right));
       else if(isOpX<GT>(t)) G.insert(flag ? t : mk<GT>(left,right));
@@ -1424,17 +1424,17 @@ namespace ufo
     }
     // outs()<<"Printing all sets: ";
     outs()<<"Following are the 6 divided formulas:\nE: ";
-    for(auto t : E) outs()<<t<<" ";
+    for(auto t : E) outs()<<*t<<" ";
     outs()<<"\nD: ";
-    for(auto t : D) outs()<<t<<" ";
+    for(auto t : D) outs()<<*t<<" ";
     outs()<<"\nG: ";
-    for(auto t : G) outs()<<t<<" ";
+    for(auto t : G) outs()<<*t<<" ";
     outs()<<"\nGE: ";
-    for(auto t : GE) outs()<<t<<" ";
+    for(auto t : GE) outs()<<*t<<" ";
     outs()<<"\nL: ";
-    for(auto t : L) outs()<<t<<" ";
+    for(auto t : L) outs()<<*t<<" ";
     outs()<<"\nLE: ";
-    for(auto t : LE) outs()<<t<<" ";
+    for(auto t : LE) outs()<<*t<<" ";
     outs()<<endl;
     
     exit(0);
