@@ -1,13 +1,13 @@
-; pi = (x <= y) && (x > y - 10) && (x < 12) && (x + y > 12)
+; pi = (y <= x) && (y > x - 10) && (y != 12) && (4 * y > 12)
 (declare-fun x () Int)
 (declare-fun y () Int)
 
 (assert (and (and (
-    <= x y
+    <= y x
 ) (
-    > x (- y 10)
+    > y (- x 10)
 )) (and (
-    > x 12
+    not(= (* 3 y) 12)
 ) (
-    > (+ x y) 12
+    > (* 4 y) 12
 ))))
