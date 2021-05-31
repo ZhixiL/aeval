@@ -1407,12 +1407,16 @@ namespace ufo
       right = t->right();
       while(isOp<NumericOp>(left))//Check the LHS of operation for *
       {
-        flag = false;//Assuming variable is always on the right side.
-        right = mk<DIV>(right,isOp<NumericOp>(left->left()) ? left->right() : left->left());
-        left = isOp<NumericOp>(left->left()) ? left->left() : left->right();
+        flag = false;
+        bool divLeft;
+        if(isOp<NumericOp>(left->left())) divLeft = false;
+        else if(bind::isIntConst(left->left())) divLeft = false;
+        else divLeft = true;
+        right = mk<DIV>(right, divLeft ? left->left() : left->right());
+        left = divLeft ? left->right() : left->left();
       }
 
-      // outs()<<isOp<ComparissonOp>(t)<<":Tested:"<<t->left()<<endl; //test
+      outs()<<bind::isIntConst(t->left())<<isOp<NumericOp>(t->left())<<":Tested:"<<t->left()<<endl; //test
 
       if(!flag) t = mk(t->op(),left,right);
       if(notFlag){
