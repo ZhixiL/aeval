@@ -1401,25 +1401,28 @@ namespace ufo
       bool flag = true, notFlag = false;
       if(isOpX<NEG>(t)){
         t = t->left(); //Ensure negation case get checked
-        notFlag = true;
-      }
+        notFlag = true;}
+
       left = t->left();
       right = t->right();
-      //Check the LHS of operation for *
-      if (isOpX<MULT>(left)){
-        flag = false;
-        right = mk<DIV>(right,left->left());
-        left = left->right();
+      while(isOp<NumericOp>(left))//Check the LHS of operation for *
+      {
+        flag = false;//Assuming variable is always on the right side.
+        right = mk<DIV>(right,isOp<NumericOp>(left->left()) ? left->right() : left->left());
+        left = isOp<NumericOp>(left->left()) ? left->left() : left->right();
       }
 
+      // outs()<<isOp<ComparissonOp>(t)<<":Tested:"<<t->left()<<endl; //test
+
+      if(!flag) t = mk(t->op(),left,right);
       if(notFlag){
-        if(isOpX<EQ>(t)) //Negated t. Check if it's EQ, if so, it's NEQ
-          D.insert(flag ? mkNeg(t) : mkNeg(mk<EQ>(left,right)));
-      }else if(isOpX<EQ>(t)) E.insert(flag ? t : mk<EQ>(left,right));
-      else if(isOpX<GT>(t)) G.insert(flag ? t : mk<GT>(left,right));
-      else if(isOpX<GEQ>(t)) GE.insert(flag ? t : mk<GEQ>(left,right));
-      else if(isOpX<LT>(t)) L.insert(flag ? t : mk<LT>(left,right));
-      else if(isOpX<LEQ>(t)) LE.insert(flag ? t : mk<LEQ>(left,right));
+        if(isOpX<EQ>(t)) //Negate t, then check if it's EQ, if so, it's NEQ
+          D.insert(mkNeg(t));
+      }else if(isOpX<EQ>(t)) E.insert(t);
+      else if(isOpX<GT>(t)) G.insert(t);
+      else if(isOpX<GEQ>(t)) GE.insert(t);
+      else if(isOpX<LT>(t)) L.insert(t);
+      else if(isOpX<LEQ>(t)) LE.insert(t);
       else outs()<<"Insertion ERROR\n";
     }
     // outs()<<"Printing all sets: ";
