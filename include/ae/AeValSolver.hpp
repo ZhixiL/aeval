@@ -1394,15 +1394,68 @@ namespace ufo
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
     outs()<<"Printing original SMT formula:\n"<<*s<<endl<<endl;
-    ExprSet E, D, G, GE, L, LE, temp;
-    getConj(s, temp);
+    ExprSet E, D, G, GE, L, LE, temp, tempInit;
+    getConj(s, tempInit);
+    Expr constOne = mkTerm (mpz_class (1), s->getFactory());
+    // Expr constI = mkTerm (mpq_class (lexical_cast<int>()), s->getFactory());
+    // outs()<< mk<PLUS>(constOne, constI)<<endl;
+
+    //DIVISION TRANSFORMATION
+    for(auto t : tempInit){
+      bool negated = false;
+      int divExist = 0; //1 for need to transform
+      if(isOpX<NEG>(t)) {t = t->left(); negated = true;}
+      if(isOp<DIV>(t->left())) divExist+=1;
+      else if(isOp<DIV>(t->right())){//swap left & right if division happens on RHS
+        divExist+=1;
+        if(isOpX<EQ>(t)) t = mk<EQ>(t->right(),t->left());
+        else if(negated && isOpX<EQ>(t->left())) t = mk<EQ>(t->left()->right(),t->left()->left());
+        else if(isOpX<LT>(t)) t = mk<GT>(t->right(),t->left());
+        else if(isOpX<LEQ>(t)) t = mk<GEQ>(t->right(),t->left());
+        else if(isOpX<GT>(t)) t = mk<LT>(t->right(),t->left());
+        else if(isOpX<GEQ>(t)) t = mk<GEQ>(t->right(),t->left());
+        else outs()<<"Error on swapping stage"<<endl;
+      }else{
+        if(negated) t = mk<NEG>(t);
+        temp.insert(t);
+      }
+      if(negated) t = mk<NEG>(t);
+
+      if(divExist == 1)
+      { 
+        //applying (3)
+        if(isOpX<LT>(t)) t = mk<LEQ>(t->left(),mk<MINUS>(t->right(),constOne));
+        else if(isOpX<GEQ>(t)) t = mk<GT>(t->left(),mk<MINUS>(t->right(),constOne));
+
+        if(isOpX<EQ>(t)){
+          temp.insert( mk<GEQ>(t->left()->left(), mk<MULT>(t->left()->right(),t->right())) );
+          temp.insert( mk<LT>(t->left()->left(), mk<PLUS>(mk<MULT>(t->left()->right(),t->right()),t->left()->right())) );
+        }else if(isOpX<GT>(t)){
+          temp.insert( mk<GT>(t->left()->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
+            t->left()->right(),t->right()),t->left()->right()),constOne)) );
+        }else if(isOpX<LEQ>(t)){
+          temp.insert( mk<LEQ>(t->left()->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
+            t->left()->right(),t->right()),t->left()->right()),constOne)) );
+        }else if(isOpX<NEG>(t) && isOpX<EQ>(t->left())){
+          int i = lexical_cast<int>(*(t->left()->left()->right()))-1;
+          while(i>=0){
+            temp.insert(mk<NEG>(mk<EQ>(t->left()->left()->left(), i!=0 ? 
+            mk<PLUS>(mk<MULT>(t->left()->left()->right(),t->left()->right()), mkTerm (mpz_class (i), s->getFactory()))
+            : mk<MULT>(t->left()->left()->right(),t->left()->right()))));
+            --i;
+          }
+        }
+      }
+    }
+    
+    //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
     for(auto t : temp){
       Expr left, right;
       bool flag = true, notFlag = false;
       if(isOpX<NEG>(t)){
         t = t->left(); //Ensure negation case get checked
-        notFlag = true;}
-
+        notFlag = true;
+      }
       left = t->left();
       right = t->right();
       while(isOp<NumericOp>(left))//Check the LHS of operation for *
@@ -1416,12 +1469,10 @@ namespace ufo
         left = divLeft ? left->right() : left->left();
       }
 
-      outs()<<bind::isIntConst(t->left())<<isOp<NumericOp>(t->left())<<":Tested:"<<t->left()<<endl; //test
-
       if(!flag) t = mk(t->op(),left,right);
-      if(notFlag){
+      if(notFlag==true){
         if(isOpX<EQ>(t)) //Negate t, then check if it's EQ, if so, it's NEQ
-          D.insert(mkNeg(t));
+          D.insert(mk<NEG>(t));
       }else if(isOpX<EQ>(t)) E.insert(t);
       else if(isOpX<GT>(t)) G.insert(t);
       else if(isOpX<GEQ>(t)) GE.insert(t);
@@ -1429,7 +1480,8 @@ namespace ufo
       else if(isOpX<LEQ>(t)) LE.insert(t);
       else outs()<<"Insertion ERROR\n";
     }
-    // outs()<<"Printing all sets: ";
+
+    //PRINTING SECTION
     outs()<<"Following are the 6 divided formulas:\nE: ";
     for(auto t : E) outs()<<*t<<" ";
     outs()<<"\nD: ";
