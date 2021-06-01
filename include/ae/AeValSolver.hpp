@@ -1396,53 +1396,56 @@ namespace ufo
     outs()<<"Printing original SMT formula:\n"<<*s<<endl<<endl;
     ExprSet E, D, G, GE, L, LE, temp, tempInit;
     getConj(s, tempInit);
-    Expr constOne = mkTerm (mpz_class (1), s->getFactory());
+    Expr constOne = mkTerm (mpz_class (1), s->getFactory ());
 
     //DIVISION TRANSFORMATION
-    for(auto t : tempInit){
+    for (auto t : tempInit){
       bool negated = false;
       int divExist = 0; //1 for need to transform
-      if(isOpX<NEG>(t)) {t = t->left(); negated = true;}
-      if(isOp<DIV>(t->left())) divExist+=1;
-      else if(isOp<DIV>(t->right())){//swap left & right if division happens on RHS
-        divExist+=1;
-        if(isOpX<EQ>(t)) t = mk<EQ>(t->right(),t->left());
-        else if(negated && isOpX<EQ>(t->left())) t = mk<EQ>(t->left()->right(),t->left()->left());
-        else if(isOpX<LT>(t)) t = mk<GT>(t->right(),t->left());
-        else if(isOpX<LEQ>(t)) t = mk<GEQ>(t->right(),t->left());
-        else if(isOpX<GT>(t)) t = mk<LT>(t->right(),t->left());
-        else if(isOpX<GEQ>(t)) t = mk<GEQ>(t->right(),t->left());
+      if (isOpX<NEG> (t)) {t = t->left(); negated = true;}
+      if (isOp<DIV> (t->left())) divExist += 1;
+      else if (isOp<DIV> (t->right())){//swap left & right if division happens on RHS
+        divExist += 1;
+        if (isOpX<EQ> (t)) t = mk<EQ> (t->right(), t->left());
+        else if (negated && isOpX<EQ> (t->left())) t = mk<EQ> (t->right(), t->left());
+        else if (isOpX<LT> (t)) t = mk<GT> (t->right(), t->left());
+        else if (isOpX<LEQ> (t)) t = mk<GEQ> (t->right(), t->left());
+        else if (isOpX<GT> (t)) t = mk<LT> (t->right(), t->left());
+        else if (isOpX<GEQ> (t)) t = mk<GEQ> (t->right(), t->left());
         else outs()<<"Error on swapping stage"<<endl;
       }else{
-        if(negated) t = mk<NEG>(t);
-        temp.insert(t);
+        if (negated) t = mk<NEG> (t);
+        temp.insert (t);
       }
-      Expr lhs;
-      lhs = t->left()
 
-      if(divExist == 1)
+      Expr lhs, rhs, alpha, varY;
+      lhs = t->left();
+      rhs = t->right(); //Also known as f(x)
+      alpha = lhs->right();
+      varY = lhs->left();
+
+      if (divExist == 1)
       { 
         //applying (3)
-        if(isOpX<LT>(t)) t = mk<LEQ>(lhs,mk<MINUS>(t->right(),constOne));
-        else if(isOpX<GEQ>(t)) t = mk<GT>(lhs,mk<MINUS>(t->right(),constOne));
+        if (isOpX<LT> (t)) t = mk<LEQ> (lhs, mk<MINUS> (rhs, constOne));
+        else if (isOpX<GEQ> (t)) t = mk<GT> (lhs, mk<MINUS> (rhs, constOne));
 
         //applying section 4.2, divisibility constraints
-        if(isOpX<EQ>(t)){
-          temp.insert( mk<GEQ>(lhs->left(), mk<MULT>(lhs->right(),t->right())) );
-          temp.insert( mk<LT>(lhs->left(), mk<PLUS>(mk<MULT>(lhs->right(),t->right()),lhs->right())) );
-        }else if(isOpX<GT>(t)){
-          temp.insert( mk<GT>(lhs->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
-            lhs->right(),t->right()),lhs->right()),constOne)) );
-        }else if(isOpX<LEQ>(t)){
-          temp.insert( mk<LEQ>(lhs->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
-            lhs->right(),t->right()),lhs->right()),constOne)) );
-        }else if(isOpX<NEG>(t) && isOpX<EQ>(lhs)){
-          if(isOpX<MPZ>(lhs->right())) int i = lexical_cast<int>(*(lhs->right()))-1;
-          else: outs()<<"Issue with NEQ expression, no alpha found."<<endl;
-          while(i>=0){
-            temp.insert(mk<NEG>(mk<EQ>(lhs->left(), i!=0 ? //Ensure 0 is not added to expression
-            mk<PLUS>(mk<MULT>(lhs->right(),t->right()), mkTerm (mpz_class (i), s->getFactory()))
-            : mk<MULT>(lhs->right(),t->right()))));
+        if (!negated && isOpX<EQ> (t)){
+          temp.insert(mk<GEQ> (varY, mk<MULT> (alpha, rhs)) );
+          temp.insert(mk<LT> (varY, mk<PLUS> (mk<MULT> (alpha, rhs), alpha)));
+        }else if (isOpX<GT> (t)){
+          temp.insert(mk<GT> (varY, mk<MINUS> (mk<PLUS> (mk<MULT> (alpha, rhs), alpha), constOne)));
+        }else if (isOpX<LEQ> (t)){
+          temp.insert(mk<LEQ> (varY, mk<MINUS> (mk<PLUS> (mk<MULT> (alpha, rhs), alpha), constOne)));
+        }else if (negated && isOpX<EQ> (t)){
+          int i = -1;
+          if (isOpX<MPZ> (alpha)) i = lexical_cast<int> (* (alpha)) - 1;
+          else outs()<<"Issue with NEQ expression, no alpha found."<<endl;
+          while (i >= 0){
+            temp.insert(mk<NEG> (mk<EQ> (varY, i!=0 ? //Ensure 0 is not added to expression
+            mk<PLUS> (mk<MULT> (alpha, rhs), mkTerm (mpz_class (i), s->getFactory()))
+            : mk<MULT> (alpha, rhs))));
             --i;
           }
         }
@@ -1450,51 +1453,51 @@ namespace ufo
     }
     
     //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
-    for(auto t : temp){
+    for (auto t : temp){
       Expr left, right;
       bool flag = true, notFlag = false;
-      if(isOpX<NEG>(t)){
+      if (isOpX<NEG> (t)){
         t = t->left(); //Ensure negation case get checked
         notFlag = true;
       }
       left = t->left();
       right = t->right();
-      while(isOp<NumericOp>(left))//Check the LHS of operation for *
+      while (isOp<NumericOp> (left))//Check the LHS of operation for *
       {
         flag = false;
         bool divLeft;
-        if(isOp<NumericOp>(left->left())) divLeft = false;
-        else if(bind::isIntConst(left->left())) divLeft = false;
+        if (isOp<NumericOp> (left->left())) divLeft = false;
+        else if (bind::isIntConst (left->left())) divLeft = false;
         else divLeft = true;
-        right = mk<DIV>(right, divLeft ? left->left() : left->right());
+        right = mk<DIV> (right, divLeft ? left->left() : left->right());
         left = divLeft ? left->right() : left->left();
       }
 
-      if(!flag) t = mk(t->op(),left,right);
-      if(notFlag==true){
-        if(isOpX<EQ>(t)) //Negate t, then check if it's EQ, if so, it's NEQ
-          D.insert(mk<NEG>(t));
-      }else if(isOpX<EQ>(t)) E.insert(t);
-      else if(isOpX<GT>(t)) G.insert(t);
-      else if(isOpX<GEQ>(t)) GE.insert(t);
-      else if(isOpX<LT>(t)) L.insert(t);
-      else if(isOpX<LEQ>(t)) LE.insert(t);
+      if (!flag) t = mk (t->op(), left, right);
+      if (notFlag == true){
+        if (isOpX<EQ> (t)) //Negate t, then check if it's EQ, if so, it's NEQ
+          D.insert(mk<NEG> (t));
+      }else if (isOpX<EQ> (t)) E.insert(t);
+      else if (isOpX<GT> (t)) G.insert(t);
+      else if (isOpX<GEQ> (t)) GE.insert(t);
+      else if (isOpX<LT> (t)) L.insert(t);
+      else if (isOpX<LEQ> (t)) LE.insert(t);
       else outs()<<"Insertion ERROR\n";
     }
 
     //PRINTING SECTION
     outs()<<"Following are the 6 divided formulas:\nE: ";
-    for(auto t : E) outs()<<*t<<" ";
+    for (auto t : E) outs()<< *t <<" ";
     outs()<<"\nD: ";
-    for(auto t : D) outs()<<*t<<" ";
+    for (auto t : D) outs()<< *t <<" ";
     outs()<<"\nG: ";
-    for(auto t : G) outs()<<*t<<" ";
+    for (auto t : G) outs()<< *t <<" ";
     outs()<<"\nGE: ";
-    for(auto t : GE) outs()<<*t<<" ";
+    for (auto t : GE) outs()<< *t <<" ";
     outs()<<"\nL: ";
-    for(auto t : L) outs()<<*t<<" ";
+    for (auto t : L) outs()<< *t <<" ";
     outs()<<"\nLE: ";
-    for(auto t : LE) outs()<<*t<<" ";
+    for (auto t : LE) outs()<< *t <<" ";
     outs()<<endl;
     
     exit(0);
