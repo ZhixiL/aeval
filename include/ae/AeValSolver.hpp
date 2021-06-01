@@ -1397,8 +1397,6 @@ namespace ufo
     ExprSet E, D, G, GE, L, LE, temp, tempInit;
     getConj(s, tempInit);
     Expr constOne = mkTerm (mpz_class (1), s->getFactory());
-    // Expr constI = mkTerm (mpq_class (lexical_cast<int>()), s->getFactory());
-    // outs()<< mk<PLUS>(constOne, constI)<<endl;
 
     //DIVISION TRANSFORMATION
     for(auto t : tempInit){
@@ -1419,29 +1417,32 @@ namespace ufo
         if(negated) t = mk<NEG>(t);
         temp.insert(t);
       }
-      if(negated) t = mk<NEG>(t);
+      Expr lhs;
+      lhs = t->left()
 
       if(divExist == 1)
       { 
         //applying (3)
-        if(isOpX<LT>(t)) t = mk<LEQ>(t->left(),mk<MINUS>(t->right(),constOne));
-        else if(isOpX<GEQ>(t)) t = mk<GT>(t->left(),mk<MINUS>(t->right(),constOne));
+        if(isOpX<LT>(t)) t = mk<LEQ>(lhs,mk<MINUS>(t->right(),constOne));
+        else if(isOpX<GEQ>(t)) t = mk<GT>(lhs,mk<MINUS>(t->right(),constOne));
 
+        //applying section 4.2, divisibility constraints
         if(isOpX<EQ>(t)){
-          temp.insert( mk<GEQ>(t->left()->left(), mk<MULT>(t->left()->right(),t->right())) );
-          temp.insert( mk<LT>(t->left()->left(), mk<PLUS>(mk<MULT>(t->left()->right(),t->right()),t->left()->right())) );
+          temp.insert( mk<GEQ>(lhs->left(), mk<MULT>(lhs->right(),t->right())) );
+          temp.insert( mk<LT>(lhs->left(), mk<PLUS>(mk<MULT>(lhs->right(),t->right()),lhs->right())) );
         }else if(isOpX<GT>(t)){
-          temp.insert( mk<GT>(t->left()->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
-            t->left()->right(),t->right()),t->left()->right()),constOne)) );
+          temp.insert( mk<GT>(lhs->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
+            lhs->right(),t->right()),lhs->right()),constOne)) );
         }else if(isOpX<LEQ>(t)){
-          temp.insert( mk<LEQ>(t->left()->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
-            t->left()->right(),t->right()),t->left()->right()),constOne)) );
-        }else if(isOpX<NEG>(t) && isOpX<EQ>(t->left())){
-          int i = lexical_cast<int>(*(t->left()->left()->right()))-1;
+          temp.insert( mk<LEQ>(lhs->left(), mk<MINUS>(mk<PLUS>(mk<MULT>(
+            lhs->right(),t->right()),lhs->right()),constOne)) );
+        }else if(isOpX<NEG>(t) && isOpX<EQ>(lhs)){
+          if(isOpX<MPZ>(lhs->right())) int i = lexical_cast<int>(*(lhs->right()))-1;
+          else: outs()<<"Issue with NEQ expression, no alpha found."<<endl;
           while(i>=0){
-            temp.insert(mk<NEG>(mk<EQ>(t->left()->left()->left(), i!=0 ? 
-            mk<PLUS>(mk<MULT>(t->left()->left()->right(),t->left()->right()), mkTerm (mpz_class (i), s->getFactory()))
-            : mk<MULT>(t->left()->left()->right(),t->left()->right()))));
+            temp.insert(mk<NEG>(mk<EQ>(lhs->left(), i!=0 ? //Ensure 0 is not added to expression
+            mk<PLUS>(mk<MULT>(lhs->right(),t->right()), mkTerm (mpz_class (i), s->getFactory()))
+            : mk<MULT>(lhs->right(),t->right()))));
             --i;
           }
         }
