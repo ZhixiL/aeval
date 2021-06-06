@@ -1388,118 +1388,182 @@ namespace ufo
     }
   };
 
+
+  /* HELPER FUNCTIONS */
+
+  //recursively locate the location of target on either LHS or RHS
+  // bool recursiveFinder(Expr s, Expr target)
+  // {
+  //   bool result = false;
+  //   if(target->arity() != 1) return false;
+  //   if (s->arity() == 1)
+  //   {
+  //     if (s == target) return true;
+  //     else return false;
+  //   } else {
+  //     if (s->left() != NULL && recursiveFinder(s->left(), target)) result = true;
+  //     if (s->right() != NULL && recursiveFinder(s->right(), target)) result = true;
+  //   }
+  //   return result;
+  // }
+
+  //normalize comparison expression through dividing both side
+  Expr multTrans(Expr t, Expr constY)
+  {
+    Expr lhs = t->left(), rhs = t->right();
+    while (isOp<MULT>(lhs))//until lhs is no longer *
+    {
+      bool divLeft;
+      Expr lOperand = lhs->left(), rOperand = lhs->right();
+      if (contains(lOperand, constY) ) divLeft = false;
+      else if (contains(rOperand, constY)) divLeft = true;
+      else outs() << "Cannot find variable y in " << *t << endl; //debug check
+      rhs = mk<DIV>(rhs, divLeft ? lOperand : rOperand);
+      lhs = divLeft ? rOperand : lOperand;
+    }
+    return (mk(t->op(), lhs, rhs));
+  }
+  
+  Expr revExpr(Expr s)
+  {
+    Expr lhs = s->left(), rhs = s->right();
+    if (isOpX<EQ>(s)) return mk<EQ>(rhs, lhs); 
+    else if (isOpX<NEQ>(s)) return mk<NEQ>(rhs, lhs);
+    else if (isOpX<LT>(s)) return mk<GT>(rhs, lhs);
+    else if (isOpX<LEQ>(s)) return mk<GEQ>(rhs, lhs);
+    else if (isOpX<GT>(s)) return mk<LT>(rhs, lhs);
+    else if (isOpX<GEQ>(s)) return mk<LEQ>(rhs, lhs);
+    outs() << "Error with revExpr()" << endl;
+    return NULL;
+  }
   /**
    * Simple wrapper
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
-    outs()<<"Printing original SMT formula:\n"<<*s<<endl<<endl;
-    ExprSet E, D, G, GE, L, LE, temp, tempInit;
-    getConj(s, tempInit);
-    Expr constOne = mkTerm (mpz_class (1), s->getFactory ());
+    outs() << "Printing original SMT formula:\n" << *s << endl << endl;
+    s = simplifyBool(s);
+    ExprSet E, D, G, LE, temp; //Use Expr vector instead
+    getConj(s, temp);
+    Expr constOne = mkTerm(mpz_class(1), s->getFactory());
+    Expr constYTemp = mkTerm <std::string> ("y", s->getFactory());
+    Expr constY = bind::intConst(constYTemp);
 
-    //DIVISION TRANSFORMATION
-    for (auto t : tempInit){
-      bool negated = false;
-      int divExist = 0; //1 for need to transform
-      if (isOpX<NEG> (t)) {t = t->left(); negated = true;}
-      if (isOp<DIV> (t->left())) divExist += 1;
-      else if (isOp<DIV> (t->right())){//swap left & right if division happens on RHS
-        divExist += 1;
-        if (isOpX<EQ> (t)) t = mk<EQ> (t->right(), t->left());
-        else if (negated && isOpX<EQ> (t->left())) t = mk<EQ> (t->right(), t->left());
-        else if (isOpX<LT> (t)) t = mk<GT> (t->right(), t->left());
-        else if (isOpX<LEQ> (t)) t = mk<GEQ> (t->right(), t->left());
-        else if (isOpX<GT> (t)) t = mk<LT> (t->right(), t->left());
-        else if (isOpX<GEQ> (t)) t = mk<GEQ> (t->right(), t->left());
-        else outs()<<"Error on swapping stage"<<endl;
-      }else{
-        if (negated) t = mk<NEG> (t);
-        temp.insert (t);
-      }
+    ExprVector sVec; //initializing Expression Vector, also making sure "y" is not on rhs.
+    for (auto t : temp) sVec.push_back(contains(t->right(), constY) ? revExpr(t) : t);
 
-      Expr lhs, rhs, alpha, varY;
-      lhs = t->left();
-      rhs = t->right(); //Also known as f(x)
-      alpha = lhs->right();
-      varY = lhs->left();
+    for (auto ite = sVec.begin(); ite != sVec.end(); ) 
+    {
+      bool error = false;
+      Expr curExp = *ite, lhs = (*ite)->left(), rhs = (*ite)->right();
+      if (!contains(lhs, constY)) outs() << "ERROR: Y is not on LHS of " << curExp << "on the start." << endl;
 
-      if (divExist == 1)
-      { 
-        //applying (3)
-        if (isOpX<LT> (t)) t = mk<LEQ> (lhs, mk<MINUS> (rhs, constOne));
-        else if (isOpX<GEQ> (t)) t = mk<GT> (lhs, mk<MINUS> (rhs, constOne));
+      // outs() << "sVec on beginning of each loop: ";// DEBUG
+      // for (auto itea = sVec.begin(); itea != sVec.end(); itea++) outs() << *itea << " ";
+      // outs() << endl;
+      // outs() << "Current *ite: " << *ite << endl;
+ 
+      //applying (3), getting rid of LT and GEQ
+      if (isOpX<LT>(curExp)) *ite = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
+      else if (isOpX<GEQ>(curExp)) *ite = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+      lhs = (*ite)->left(), rhs = (*ite)->right(), curExp = *ite;
 
-        //applying section 4.2, divisibility constraints
-        if (!negated && isOpX<EQ> (t)){
-          temp.insert(mk<GEQ> (varY, mk<MULT> (alpha, rhs)) );
-          temp.insert(mk<LT> (varY, mk<PLUS> (mk<MULT> (alpha, rhs), alpha)));
-        }else if (isOpX<GT> (t)){
-          temp.insert(mk<GT> (varY, mk<MINUS> (mk<PLUS> (mk<MULT> (alpha, rhs), alpha), constOne)));
-        }else if (isOpX<LEQ> (t)){
-          temp.insert(mk<LEQ> (varY, mk<MINUS> (mk<PLUS> (mk<MULT> (alpha, rhs), alpha), constOne)));
-        }else if (negated && isOpX<EQ> (t)){
-          int i = -1;
-          if (isOpX<MPZ> (alpha)) i = lexical_cast<int> (* (alpha)) - 1;
-          else outs()<<"Issue with NEQ expression, no alpha found."<<endl;
-          while (i >= 0){
-            temp.insert(mk<NEG> (mk<EQ> (varY, i!=0 ? //Ensure 0 is not added to expression
-            mk<PLUS> (mk<MULT> (alpha, rhs), mkTerm (mpz_class (i), s->getFactory()))
-            : mk<MULT> (alpha, rhs))));
-            --i;
+      if (lhs->arity() == 1) {++ite;}
+      else
+      {
+        //MULTIPLICATION TRANSFORMATION (MultTrans stage)
+        if (isOp<MULT>(lhs)) 
+        {
+          Expr afterTrans = multTrans(curExp, constY), expBackup = *ite;
+          sVec.push_back(afterTrans);
+          if (*ite == NULL || *ite != expBackup) //Check, ensure iterator won't point to other things
+          {
+            // if (*ite == NULL) outs() << "Error: ite poitns to NULL"; // DEBUG
+            // else outs() << "Error: ite points to " << *ite;
+            outs() << "minor issue occur on " << *expBackup << " in MultTrans stage, attemp to fix...";
+            for(ite = sVec.begin(); *ite != expBackup && ite != sVec.end(); ) ite++;
+            if(*ite == NULL || *ite != expBackup) outs() << "\tERROR, unresolvable." << endl;
+            else outs() << "Success!" << endl;
           }
         }
-      }
-    }
-    
-    //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
-    for (auto t : temp){
-      Expr left, right;
-      bool flag = true, notFlag = false;
-      if (isOpX<NEG> (t)){
-        t = t->left(); //Ensure negation case get checked
-        notFlag = true;
-      }
-      left = t->left();
-      right = t->right();
-      while (isOp<NumericOp> (left))//Check the LHS of operation for *
-      {
-        flag = false;
-        bool divLeft;
-        if (isOp<NumericOp> (left->left())) divLeft = false;
-        else if (bind::isIntConst (left->left())) divLeft = false;
-        else divLeft = true;
-        right = mk<DIV> (right, divLeft ? left->left() : left->right());
-        left = divLeft ? left->right() : left->left();
-      }
+        // DIVISION TRANSFORMATION (DivTrans stage)
+        else if (isOp<DIV>(lhs))
+        {
+          lhs = curExp->left(), rhs = curExp->right();
+          Expr alpha = lhs->right(), varY = lhs->left(), expBackup = *ite;
+          if (!contains(varY, constY))
+            outs() << "Error on divTrans, f(x)/y format not supported." << endl;
 
-      if (!flag) t = mk (t->op(), left, right);
-      if (notFlag == true){
-        if (isOpX<EQ> (t)) //Negate t, then check if it's EQ, if so, it's NEQ
-          D.insert(mk<NEG> (t));
-      }else if (isOpX<EQ> (t)) E.insert(t);
-      else if (isOpX<GT> (t)) G.insert(t);
-      else if (isOpX<GEQ> (t)) GE.insert(t);
-      else if (isOpX<LT> (t)) L.insert(t);
-      else if (isOpX<LEQ> (t)) LE.insert(t);
-      else outs()<<"Insertion ERROR\n";
+          //applying section 4.2, divisibility constraints
+          if (isOpX<EQ>(curExp)){
+            sVec.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
+            sVec.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+          } else if (isOpX<GT>(curExp)){
+            sVec.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+          } else if (isOpX<LEQ>(curExp)){
+            sVec.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+          } else if (isOpX<NEQ>(curExp)){
+            int i = -1;
+            if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
+            else outs() << "Issue with NEQ expression, no alpha found." << endl;
+            while (i >= 0){
+              sVec.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
+                mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
+                mk<MULT>(alpha, rhs)));
+              --i;
+            }
+            // outs() << "sVec on middle of divTrans: "; //DEBUG
+            // for (auto itea = sVec.begin(); itea != sVec.end(); itea++) outs() << *itea << " ";
+            // outs() << *ite << endl; //Checking elements in every iteration
+          }
+          if (*ite == NULL || *ite != expBackup) //Ensure iterator doesn't point to null at the end.
+          {
+            // if (*ite == NULL) outs() << "Error: ite poitns to NULL"; //DEBUG
+            // else outs() << "Error: ite points to " << *ite;
+            outs() << "Minor issue occur on " << *expBackup << " in DivTrans stage, attemp to fix...";
+            for(ite = sVec.begin(); *ite != expBackup && ite != sVec.end(); ) ite++;
+            if(*ite == NULL || *ite != expBackup) outs() << "\tERROR, unresolvable." << endl;
+            else outs() << "Success!" << endl;
+          }
+        }
+        else outs() << "The current operation on LHS :" << *lhs << " is not supported!" << endl;
+        sVec.erase(ite);
+      }
+      // if (!contains(lhs, constY)) outs() << "ERROR: Y is not on LHS of " << *t << "on the end." <<endl;
+    }
+
+
+    //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
+    for (auto ite = sVec.begin(); ite != sVec.end(); ){
+      if (isOpX<NEQ>(*ite))  D.insert(*ite);
+      else if (isOpX<EQ>(*ite)) E.insert(*ite);
+      else if (isOpX<GT>(*ite)) G.insert(*ite);
+      else if (isOpX<LEQ>(*ite)) LE.insert(*ite);
+      else if (isOpX<GEQ>(*ite)) outs() << "Error, GEQ detected: " << *ite << endl;
+      else if (isOpX<LT>(*ite)) outs() << "Error, LT detected: " << *ite << endl;
+      else outs() << "Insertion ERROR\n";
+      ite++;
     }
 
     //PRINTING SECTION
-    outs()<<"Following are the 6 divided formulas:\nE: ";
-    for (auto t : E) outs()<< *t <<" ";
-    outs()<<"\nD: ";
-    for (auto t : D) outs()<< *t <<" ";
-    outs()<<"\nG: ";
-    for (auto t : G) outs()<< *t <<" ";
-    outs()<<"\nGE: ";
-    for (auto t : GE) outs()<< *t <<" ";
-    outs()<<"\nL: ";
-    for (auto t : L) outs()<< *t <<" ";
-    outs()<<"\nLE: ";
-    for (auto t : LE) outs()<< *t <<" ";
-    outs()<<endl;
+    outs() << "Following expressions divided by comparison type:\nE: ";
+    for (auto t : E) outs() <<  *t  << " ";
+    outs() << "\nD: ";
+    for (auto t : D) outs() <<  *t  << " ";
+    outs() << "\nG: ";
+    for (auto t : G) outs() <<  *t  << " ";
+    outs() << "\nGE: ";
+    for (auto t : LE) outs() <<  *t  << " ";
+    outs() << endl;
     
+    ExprSet final;
+    for(auto t : E) final.insert(t);
+    for(auto t : D) final.insert(t);
+    for(auto t : G) final.insert(t);
+    for(auto t : LE) final.insert(t);
+    SMTUtils u1(s->getFactory());
+    outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
+
     exit(0);
 
     ExprSet t_quantified;
