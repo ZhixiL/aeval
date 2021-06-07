@@ -1436,6 +1436,19 @@ namespace ufo
     outs() << "Error with revExpr()" << endl;
     return NULL;
   }
+
+  //used when initializing the element for sVec.
+  Expr vecElemInit(Expr t, Expr constY)
+  {
+    //ensure y is on lhs.
+    if (contains(t->right(), constY)) t = revExpr (t);
+    Expr lhs = t->left(), rhs = t->right(), constOne = mkTerm(mpz_class(1), t->getFactory());
+    //applying (3), getting rid of LT and GEQ
+    if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
+    else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+    return t;
+  }
+
   /**
    * Simple wrapper
    */
@@ -1449,88 +1462,149 @@ namespace ufo
     Expr constYTemp = mkTerm <std::string> ("y", s->getFactory());
     Expr constY = bind::intConst(constYTemp);
 
-    ExprVector sVec; //initializing Expression Vector, also making sure "y" is not on rhs.
-    for (auto t : temp) sVec.push_back(contains(t->right(), constY) ? revExpr(t) : t);
+    ExprVector sVec, sVecTemp;
+    //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ.
+    for (auto t : temp) sVec.push_back(vecElemInit(t, constY));
 
-    for (auto ite = sVec.begin(); ite != sVec.end(); ) 
+    bool breakFlag = false;
+    while (breakFlag == false)
     {
-      bool error = false;
-      Expr curExp = *ite, lhs = (*ite)->left(), rhs = (*ite)->right();
-      if (!contains(lhs, constY)) outs() << "ERROR: Y is not on LHS of " << curExp << "on the start." << endl;
-
-      // outs() << "sVec on beginning of each loop: ";// DEBUG
-      // for (auto itea = sVec.begin(); itea != sVec.end(); itea++) outs() << *itea << " ";
-      // outs() << endl;
-      // outs() << "Current *ite: " << *ite << endl;
- 
-      //applying (3), getting rid of LT and GEQ
-      if (isOpX<LT>(curExp)) *ite = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
-      else if (isOpX<GEQ>(curExp)) *ite = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
-      lhs = (*ite)->left(), rhs = (*ite)->right(), curExp = *ite;
-
-      if (lhs->arity() == 1) {++ite;}
-      else
+      auto locIte = sVec.begin();
+      if (!sVecTemp.empty())
       {
-        //MULTIPLICATION TRANSFORMATION (MultTrans stage)
-        if (isOp<MULT>(lhs)) 
-        {
-          Expr afterTrans = multTrans(curExp, constY), expBackup = *ite;
-          sVec.push_back(afterTrans);
-          if (*ite == NULL || *ite != expBackup) //Check, ensure iterator won't point to other things
-          {
-            // if (*ite == NULL) outs() << "Error: ite poitns to NULL"; // DEBUG
-            // else outs() << "Error: ite points to " << *ite;
-            outs() << "minor issue occur on " << *expBackup << " in MultTrans stage, attemp to fix...";
-            for(ite = sVec.begin(); *ite != expBackup && ite != sVec.end(); ) ite++;
-            if(*ite == NULL || *ite != expBackup) outs() << "\tERROR, unresolvable." << endl;
-            else outs() << "Success!" << endl;
-          }
-        }
-        // DIVISION TRANSFORMATION (DivTrans stage)
-        else if (isOp<DIV>(lhs))
-        {
-          lhs = curExp->left(), rhs = curExp->right();
-          Expr alpha = lhs->right(), varY = lhs->left(), expBackup = *ite;
-          if (!contains(varY, constY))
-            outs() << "Error on divTrans, f(x)/y format not supported." << endl;
-
-          //applying section 4.2, divisibility constraints
-          if (isOpX<EQ>(curExp)){
-            sVec.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
-            sVec.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-          } else if (isOpX<GT>(curExp)){
-            sVec.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-          } else if (isOpX<LEQ>(curExp)){
-            sVec.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-          } else if (isOpX<NEQ>(curExp)){
-            int i = -1;
-            if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
-            else outs() << "Issue with NEQ expression, no alpha found." << endl;
-            while (i >= 0){
-              sVec.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
-                mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
-                mk<MULT>(alpha, rhs)));
-              --i;
-            }
-            // outs() << "sVec on middle of divTrans: "; //DEBUG
-            // for (auto itea = sVec.begin(); itea != sVec.end(); itea++) outs() << *itea << " ";
-            // outs() << *ite << endl; //Checking elements in every iteration
-          }
-          if (*ite == NULL || *ite != expBackup) //Ensure iterator doesn't point to null at the end.
-          {
-            // if (*ite == NULL) outs() << "Error: ite poitns to NULL"; //DEBUG
-            // else outs() << "Error: ite points to " << *ite;
-            outs() << "Minor issue occur on " << *expBackup << " in DivTrans stage, attemp to fix...";
-            for(ite = sVec.begin(); *ite != expBackup && ite != sVec.end(); ) ite++;
-            if(*ite == NULL || *ite != expBackup) outs() << "\tERROR, unresolvable." << endl;
-            else outs() << "Success!" << endl;
-          }
-        }
-        else outs() << "The current operation on LHS :" << *lhs << " is not supported!" << endl;
-        sVec.erase(ite);
+        while (*locIte != *(sVecTemp.begin())) ++locIte;
+        sVecTemp.clear();
       }
-      // if (!contains(lhs, constY)) outs() << "ERROR: Y is not on LHS of " << *t << "on the end." <<endl;
+
+      while (locIte != sVec.end())
+      {
+        Expr lhs = (*locIte) -> left(), rhs = (*locIte) -> right(), curExp = (*locIte);
+        if (!contains(curExp, constY)) outs() << "ERROR: Y is not on LHS of " << curExp << "on the start." << endl;
+        if (lhs->arity() != 1)
+        {
+          //MULTIPLICATION TRANSFORMATION
+          if (isOp<MULT>(lhs)) sVecTemp.push_back(multTrans(curExp, constY));
+
+          //DIVISION TRANSFORMATION
+          else if (isOp<DIV>(lhs))
+          {
+            Expr lhs = curExp->left(), rhs = curExp->right();
+            Expr alpha = lhs->right(), varY = lhs->left();
+            if (!contains(varY, constY)) outs() << "Error on divTrans, f(x)/y format not supported." << endl;
+
+            //applying section 4.2, divisibility constraints
+            if (isOpX<EQ>(curExp)){
+              sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
+              sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+            } else if (isOpX<GT>(curExp)){
+              sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+            } else if (isOpX<LEQ>(curExp)){
+              sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+            } else if (isOpX<NEQ>(curExp)){
+              int i = -1;
+              if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
+              else outs() << "Issue with NEQ expression, no alpha found." << endl;
+              while (i >= 0)
+              {
+                sVecTemp.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
+                  mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
+                  mk<MULT>(alpha, rhs)));
+                --i;
+              }
+            }
+          } else outs() << "The current operation on LHS : " << *lhs << " is not supported!" << endl;
+          sVec.erase(locIte);
+          if (locIte + 1 == sVec.end()) break; //prevent issue where locIte is erased but didn't increment.
+        }
+        else locIte += 1;
+      }
+      
+      if (sVecTemp.empty()) breakFlag = true; // no change detected, break while loop.
+      else // Merging sVecTemp w/ sVec
+      {
+        for (auto ite = sVecTemp.begin(); ite != sVecTemp.end(); ++ite) sVec.push_back(*ite);
+      }
     }
+
+    // for (auto ite = sVec.begin(); ite != sVec.end(); ) 
+    // {
+    //   bool error = false;
+    //   Expr curExp = *ite, lhs = (*ite)->left(), rhs = (*ite)->right();
+    //   if (!contains(lhs, constY)) outs() << "ERROR: Y is not on LHS of " << curExp << "on the start." << endl;
+
+    //   // outs() << "sVec on beginning of each loop: ";// DEBUG
+    //   // for (auto itea = sVec.begin(); itea != sVec.end(); itea++) outs() << *itea << " ";
+    //   // outs() << endl;
+    //   // outs() << "Current *ite: " << *ite << endl;
+ 
+    //   //applying (3), getting rid of LT and GEQ
+    //   if (isOpX<LT>(curExp)) *ite = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
+    //   else if (isOpX<GEQ>(curExp)) *ite = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+    //   lhs = (*ite)->left(), rhs = (*ite)->right(), curExp = *ite;
+
+    //   if (lhs->arity() == 1) {++ite;}
+    //   else
+    //   {
+    //     //MULTIPLICATION TRANSFORMATION (MultTrans stage)
+    //     if (isOp<MULT>(lhs)) 
+    //     {
+    //       Expr afterTrans = multTrans(curExp, constY), expBackup = *ite;
+    //       sVec.push_back(afterTrans);
+    //       if (*ite == NULL || *ite != expBackup) //Check, ensure iterator won't point to other things
+    //       {
+    //         // if (*ite == NULL) outs() << "Error: ite poitns to NULL"; // DEBUG
+    //         // else outs() << "Error: ite points to " << *ite;
+    //         outs() << "minor issue occur on " << *expBackup << " in MultTrans stage, attemp to fix...";
+    //         for(ite = sVec.begin(); *ite != expBackup && ite != sVec.end(); ) ite++;
+    //         if(*ite == NULL || *ite != expBackup) outs() << "\tERROR, unresolvable." << endl;
+    //         else outs() << "Success!" << endl;
+    //       }
+    //     }
+    //     // DIVISION TRANSFORMATION (DivTrans stage)
+    //     else if (isOp<DIV>(lhs))
+    //     {
+    //       lhs = curExp->left(), rhs = curExp->right();
+    //       Expr alpha = lhs->right(), varY = lhs->left(), expBackup = *ite;
+    //       if (!contains(varY, constY))
+    //         outs() << "Error on divTrans, f(x)/y format not supported." << endl;
+
+    //       //applying section 4.2, divisibility constraints
+    //       if (isOpX<EQ>(curExp)){
+    //         sVec.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
+    //         sVec.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+    //       } else if (isOpX<GT>(curExp)){
+    //         sVec.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+    //       } else if (isOpX<LEQ>(curExp)){
+    //         sVec.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+    //       } else if (isOpX<NEQ>(curExp)){
+    //         int i = -1;
+    //         if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
+    //         else outs() << "Issue with NEQ expression, no alpha found." << endl;
+    //         while (i >= 0){
+    //           sVec.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
+    //             mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
+    //             mk<MULT>(alpha, rhs)));
+    //           --i;
+    //         }
+    //         // outs() << "sVec on middle of divTrans: "; //DEBUG
+    //         // for (auto itea = sVec.begin(); itea != sVec.end(); itea++) outs() << *itea << " ";
+    //         // outs() << *ite << endl; //Checking elements in every iteration
+    //       }
+    //       if (*ite == NULL || *ite != expBackup) //Ensure iterator doesn't point to null at the end.
+    //       {
+    //         // if (*ite == NULL) outs() << "Error: ite poitns to NULL"; //DEBUG
+    //         // else outs() << "Error: ite points to " << *ite;
+    //         outs() << "Minor issue occur on " << *expBackup << " in DivTrans stage, attemp to fix...";
+    //         for(ite = sVec.begin(); *ite != expBackup && ite != sVec.end(); ) ite++;
+    //         if(*ite == NULL || *ite != expBackup) outs() << "\tERROR, unresolvable." << endl;
+    //         else outs() << "Success!" << endl;
+    //       }
+    //     }
+    //     else outs() << "The current operation on LHS :" << *lhs << " is not supported!" << endl;
+    //     sVec.erase(ite);
+    //   }
+    //   // if (!contains(lhs, constY)) outs() << "ERROR: Y is not on LHS of " << *t << "on the end." <<endl;
+    // }
 
 
     //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
