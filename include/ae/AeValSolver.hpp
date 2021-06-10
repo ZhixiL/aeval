@@ -1566,16 +1566,19 @@ namespace ufo
     for (auto t : D) outs() <<  *t  << " ";
     outs() << "\nG: ";
     for (auto t : G) outs() <<  *t  << " ";
-    outs() << "\nGE: ";
+    outs() << "\nLE: ";
     for (auto t : LE) outs() <<  *t  << " ";
     outs() << endl;
+    
     
     ExprSet final;
     for(auto t : E) final.insert(t);
     for(auto t : D) final.insert(t);
     for(auto t : G) final.insert(t);
     for(auto t : LE) final.insert(t);
+    outs() << "Program arrive before calling SMTUtils u1(s->getFactory());" << endl;
     SMTUtils u1(s->getFactory());
+    outs() << "program arrive before calling u1.isEquiv()" << endl;
     outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
 
     exit(0);
