@@ -1,59 +1,70 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <algorithm>
+#include <vector>
+#include <chrono>
+#include <sys/time.h>
+
 using namespace std;
 
 // var "y" has to be on pos 0, other variables can be anywhere after that.
-const string VARS[] = {"y", "x"};
-const int VARS_SIZE = sizeof(VARS) / sizeof(VARS[0]);
-// File count, expression count per example(at least 1), length of final Expression (at least 2)
-const int F_COUNT = 10, EXPR_COUNT_MIN = 5, EXPR_COUNT_MAX = 20, MAX_EXPR_LEN = 10, MIN_EXPR_LEN = 5;
-const int CONST_MAX = 100;
+const string constY = "y";
+// File count, expression count per example(at least 1), length of final Expression (at least 1)
+const int EXPR_COUNT_MIN = 1, EXPR_COUNT_MAX = 4, MIN_EXPR_LEN = 1, MAX_EXPR_LEN = 3;
+const int CONST_MAX = 5;
+const bool NEQ = true;
 
 
 //Variable declaration generator
-string declVar(string input);
+string declVar();
 //wrapping around the conjunctions
 void conGenWrap(); 
 //Generate conjunctions of expressions.
 string conGen(int exprCount);
 //Comparison Expression Generation
 string compExprGen();
-//Expression generation (without comparison)
-string expr(int ct);
-//Expression generation (without comparison, with y)
-string exprWY(int ct, bool y = true);
+//Simple Expression Generator given a variable
+string exprGen(string var);
+//Simple Expression Generator with random variables conjoin with +
+string exprGenWRandVars();
 //Generate random comparison operator
 string compOpGen();
 //Generate random arithmetic operator
-string opGen();
-//Generate y side specific random arithmetic operator
-string opGenWY(); // for now, only support * and /
-//Generate random variable that's not y from VARS[]
-string varGen();
+string opGen(); //only * and /
 
-int main()
+int main(int argc, char ** argv)
 {
+  struct timeval time_now{};
+  gettimeofday(&time_now, nullptr);
+  int timeSeed = static_cast<int>(time_now.tv_usec);
+  srand(timeSeed);
   conGenWrap();
   return 0;
 }
 
-string declVar(string input)
+string declVar()
 {
-  return "(declare-fun " + input + " () Int)";
+  string declOut = "(declare-fun y () Int)\n";
+  for (int i = 1; i <= MAX_EXPR_LEN; i++) declOut = declOut + "(declare-fun x" + to_string(i) + " () Int)\n";
+  return declOut;
 }
-void conGenWrap()
+void conGenWrap() 
 {
-  ofstream fileOut;
-  for (int curFile = 1; curFile <= F_COUNT; ++curFile)
-  {
-    fileOut.open("genEx" + to_string(curFile) + ".smt2");
-    for (auto variable : VARS) fileOut << (declVar(variable)) << endl;
-    fileOut << endl << "(assert (" << endl; // starting assertion
-    fileOut << conGen(rand() % (EXPR_COUNT_MAX - EXPR_COUNT_MIN + 1) + EXPR_COUNT_MIN);
-    fileOut << endl << "))"; // the end
-    fileOut.close();
-  }
+  // ofstream fileOut;
+  // for (int curFile = 1; curFile <= F_COUNT; ++curFile)
+  // {
+  //   fileOut.open("genEx" + to_string(curFile) + ".smt2");
+  //   fileOut << declVar();
+  //   fileOut << endl << "(assert (" << endl; // starting assertion
+  //   fileOut << conGen(rand() % (EXPR_COUNT_MAX - EXPR_COUNT_MIN + 1) + EXPR_COUNT_MIN);
+  //   fileOut << endl << "))"; // the end
+  //   fileOut.close();
+  // }
+  cout << declVar();
+  cout << endl << "(assert (" << endl; // starting assertion
+  cout << conGen(rand() % (EXPR_COUNT_MAX - EXPR_COUNT_MIN + 1) + EXPR_COUNT_MIN);
+  cout << endl << "))"; // the end
 }
 string conGen(int exprCount)
 {
@@ -70,60 +81,44 @@ string conGen(int exprCount)
 }
 string compExprGen()
 {
-  int exprCt = rand() % (MAX_EXPR_LEN - MIN_EXPR_LEN + 1) + MIN_EXPR_LEN;
-  int lhsCt = rand() % (exprCt - 1) + 1;
-  int rhsCt = exprCt - lhsCt;
-  string exprStr = "", op = compOpGen(), lhsExpr = exprWY(lhsCt), rhsExpr = expr(rhsCt);
-  if ((rand() % 2) == 1) {
-    swap(lhsExpr, rhsExpr);
-    swap(lhsCt, rhsCt);
-  }
-  if (lhsCt > 1 && rhsCt > 1) exprStr = op + "(" + lhsExpr + ") (" + rhsExpr + ")";
-  else if (lhsCt > 1) exprStr = op + "(" + lhsExpr + ") " + rhsExpr;
-  else if (rhsCt > 1) exprStr = op + lhsExpr + " (" + rhsExpr + ")";
-  else exprStr = op + lhsExpr + " " + rhsExpr;
-  if (op == "= " && (rand() % 2) == 1) exprStr = ("not (" + exprStr + ")"); //convert 50% of "=" to "!="
+  string exprStr = "", op = compOpGen();
+  string lhsExpr = ("(" + exprGen(constY) + ")"), rhsExpr = exprGenWRandVars();
+  if ((rand() % 2) == 1) swap(lhsExpr, rhsExpr);
+  exprStr = op + lhsExpr + " " + rhsExpr;
+  if (op == "= " && (rand() % 2) == 1 && NEQ) exprStr = ("not (" + exprStr + ")"); //convert 50% of "=" to "!="
   return exprStr;
 }
-string expr(int ct)
+string exprGen(string var)
 {
-  if(ct > 1)
-  {
-    int lhsCt = rand() % (ct - 1) + 1, rhsCt = ct - lhsCt;
-    string exprFin = opGen();
-    if (lhsCt > 1) exprFin = exprFin + "(" + expr(lhsCt) + ") ";
-    else exprFin = exprFin + expr(lhsCt) + " ";
-    if (rhsCt > 1) exprFin = exprFin + "(" + expr(rhsCt) + ")";
-    else exprFin = exprFin + expr(rhsCt);
-    return exprFin;
+  string finResult;
+  if (var == "y") finResult = opGen();
+  else finResult = opGen();
+  if (finResult == "/ ")
+    return (finResult + var + " " + to_string((rand() % (CONST_MAX - 2)) + 2));
+  else if (finResult == "* ") {
+    bool neg = (rand() % 2 == 1 ? true : false);
+    int coef = (rand() % (CONST_MAX - 2) + 2) + 1;
+    if (neg) return (finResult + "(- " + to_string(coef) + ") " + var);
+    return (finResult + to_string(coef) + " " + var);
   }
-  // 50% for variable, 50% for constant
-  if (rand() % 2 == 1) return varGen();
-  return to_string(rand() % CONST_MAX + 1);
+  return (finResult + var + " " + to_string((rand() % (CONST_MAX -1)) +1));
 }
-string exprWY(int ct, bool y)
+string exprGenWRandVars()
 {
-  if(ct > 1)
+  int exprCount = rand() % (MAX_EXPR_LEN - MIN_EXPR_LEN + 1) + MIN_EXPR_LEN;
+  vector<string> vars;
+  for (int i = 1; i <= exprCount; i++) vars.push_back("x" + to_string(i));
+  random_shuffle (vars.begin(), vars.end());
+  string retStr = "";
+  for (auto i : vars)
   {
-    bool lhsY = false, rhsY = false;
-    int lhsCt = rand() % (ct - 1) + 1, rhsCt = ct - lhsCt;
-    string exprFin = opGenWY();
-    if (y) // check if y is inherited.
-    {
-      //ensuring y is on lhs for division.
-      if (exprFin == "/ ") lhsY = true; 
-      //50% for either side to get y.
-      else (rand() % 2 == 1) ? lhsY = true : rhsY = true; 
-    }
-    if (lhsCt > 1) exprFin = exprFin + "(" + exprWY(lhsCt, lhsY) + ") ";
-    else exprFin = exprFin + exprWY(lhsCt, lhsY) + " ";
-    if (rhsCt > 1) exprFin = exprFin + "(" + exprWY(rhsCt, rhsY) + ")";
-    else exprFin = exprFin + exprWY(rhsCt, rhsY);
-    return exprFin;
+    if (retStr == "") retStr = "(" + exprGen(i) + ")";
+    else retStr = "(+ " + retStr + " (" + exprGen(i) + "))";
   }
-  if (y) return VARS[0];
-  return to_string(rand() % CONST_MAX + 1);
+  if (rand() % 2 == 1) retStr = "(+ " + retStr + " " + to_string((rand() % (CONST_MAX - 1)) + 1) + " )";
+  return retStr;
 }
+
 string compOpGen()
 {
   int choice = rand() % 6;
@@ -139,31 +134,14 @@ string compOpGen()
 }
 string opGen()
 {
-  int choice = rand() % 4;
-  switch (choice)
-  {
-    case 0: return "+ ";
-    case 1: return "- ";
-    case 2: return "* ";
-    case 3: return "/ ";
-  }
-  cout << "ERROR: occured in opGen()." << endl;
-  return 0;
-}
-string opGenWY()
-{
   int choice = rand() % 2;
   switch (choice)
   {
     case 0: return "* ";
     case 1: return "/ ";
+    // case 2: return "+ ";
+    // case 3: return "- ";
   }
-  cout << "ERROR: occured in opGenWY()." << endl;
-  return 0;
-}
-string varGen()
-{
-  if (VARS_SIZE > 1) return VARS[rand() % (VARS_SIZE - 1) + 1];
-  else cout << "ERROR, sizeof(VARS) should be > 2";
+  cout << "ERROR: occured in opGen()." << endl;
   return 0;
 }

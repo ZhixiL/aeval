@@ -1388,25 +1388,19 @@ namespace ufo
     }
   };
 
+  /* GIVEN HELPER FUNCTION */
+  // create forall & exists formulas
+  Expr static createQuantifiedFormulaRestr (Expr def, Expr a, bool forall = false)
+  {// want to have quantifiers in def
+    //if (vars.empty()) return def; 
+    ExprVector args; 
+    args.push_back(a->last()); // push variable y into vars.
+    args.push_back(def);
+    if (forall) return mknary<FORALL>(args);
+    else return mknary<EXISTS>(args);
+  }
 
   /* HELPER FUNCTIONS */
-
-  //recursively locate the location of target on either LHS or RHS
-  // bool recursiveFinder(Expr s, Expr target)
-  // {
-  //   bool result = false;
-  //   if(target->arity() != 1) return false;
-  //   if (s->arity() == 1)
-  //   {
-  //     if (s == target) return true;
-  //     else return false;
-  //   } else {
-  //     if (s->left() != NULL && recursiveFinder(s->left(), target)) result = true;
-  //     if (s->right() != NULL && recursiveFinder(s->right(), target)) result = true;
-  //   }
-  //   return result;
-  // }
-
   //normalize comparison expression through dividing both side
   Expr multTrans(Expr t, Expr constY)
   {
@@ -1449,14 +1443,49 @@ namespace ufo
     }
   }
 
+  // Ensuring lhs doesn't have a negative coefficient.
+    Expr negativeCoefCheck(Expr t)
+  {
+    if (t->arity() == 2)
+    {
+      Expr lhs = t->left(), rhs = t->right();
+      if (isOpX<UN_MINUS>(lhs->left()))
+      {
+        Expr coef = lhs->left()->left();
+        lhs = mk(lhs->op(), coef, lhs->right());
+      } else if (isOpX<UN_MINUS>(lhs->right()))
+      {
+        Expr coef = lhs->right()->left();
+        lhs = mk(lhs->op(), lhs->left(), coef);
+      } else {
+        outs() << "ERROR on finding negative value on LHS in negativeCoefCheck()!";
+        exit(0);
+      }
+      rhs = mk<MULT>(mk<UN_MINUS>(mkTerm(mpz_class(1), t->getFactory())), rhs);
+      if (isOpX<EQ>(t)) return mk<EQ>(lhs, rhs); 
+      else if (isOpX<NEQ>(t)) return mk<NEQ>(lhs, rhs);
+      else if (isOpX<LT>(t)) return mk<GT>(lhs, rhs);
+      else if (isOpX<LEQ>(t)) return mk<GEQ>(lhs, rhs);
+      else if (isOpX<GT>(t)) return mk<LT>(lhs, rhs);
+      else if (isOpX<GEQ>(t)) return mk<LEQ>(lhs, rhs);
+    }
+    outs() << "ERROR on invoking negativeCoefCheck()! The input Expr t is invalid!" << endl;
+    exit(0);
+  }
+
   //used when initializing the element for sVec.
   Expr vecElemInit(Expr t, Expr constY)
   {
     if (t->arity() == 2)
     {
       //ensure y is on lhs.
-      if (contains(t->right(), constY)) t = revExpr (t);
+      if (contains(t->right(), constY)) t = revExpr(t);
       Expr lhs = t->left(), rhs = t->right(), constOne = mkTerm(mpz_class(1), t->getFactory());
+      //ensure lhs is not negative
+      if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
+        t = negativeCoefCheck(t);
+        lhs = t->left(), rhs = t->right();
+      }
       //applying (3), getting rid of LT and GEQ
       if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
       else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
@@ -1526,7 +1555,7 @@ namespace ufo
             } else if (isOpX<NEQ>(curExp)){
               int i = -1;
               if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
-              else outs() << "Issue with NEQ expression, no alpha found." << endl;
+              else outs() << "Issue with NEQ expression, no alpha found." << *curExp << endl;
               while (i >= 0)
               {
                 sVecTemp.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
@@ -1576,9 +1605,7 @@ namespace ufo
     for(auto t : D) final.insert(t);
     for(auto t : G) final.insert(t);
     for(auto t : LE) final.insert(t);
-    outs() << "Program arrive before calling SMTUtils u1(s->getFactory());" << endl;
     SMTUtils u1(s->getFactory());
-    outs() << "program arrive before calling u1.isEquiv()" << endl;
     outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
 
     exit(0);

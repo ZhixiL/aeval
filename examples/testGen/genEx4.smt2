@@ -1,18 +1,13 @@
 (declare-fun y () Int)
-(declare-fun x () Int)
+(declare-fun x1 () Int)
+(declare-fun x2 () Int)
+(declare-fun x3 () Int)
+(declare-fun x4 () Int)
 
 (assert (
-and (and (and (
-not (= y (- 29 (+ (/ x 24) x)))
+and (
+> (* 4 y) (+ (+ (+ (+ (/ x1 2) (* 5 x4)) (/ x3 2)) (/ x2 3)) 3 )
 ) (
-> x (* (* (/ 20 (* 62 26)) (/ 91 (* 94 (* 82 67)))) (/ y 23))
-)) (
-not (= (+ (/ 52 (/ x x)) (* (+ x x) x)) (/ (* y 29) 21))
-)) (and (and (
-= (/ y (* 93 (* (* 47 74) (* 93 (* 29 60))))) (- 28 49)
-) (
-< (+ (+ (/ 2 x) (- x x)) (+ 55 15)) y
-)) (
-not (= (* (- (+ x (/ x 65)) x) (* (/ (/ 54 x) x) x)) (* 92 y))
-))
+<= (/ y 4) (+ (+ (* (- 5) x2) (/ x1 3)) 1 )
+)
 ))
