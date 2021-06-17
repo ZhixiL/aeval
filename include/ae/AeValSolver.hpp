@@ -1388,19 +1388,10 @@ namespace ufo
     }
   };
 
-  /* GIVEN HELPER FUNCTION */
-  // create forall & exists formulas
-  Expr static createQuantifiedFormulaRestr (Expr def, Expr a, bool forall = false)
-  {// want to have quantifiers in def
-    //if (vars.empty()) return def; 
-    ExprVector args; 
-    args.push_back(a->last()); // push variable y into vars.
-    args.push_back(def);
-    if (forall) return mknary<FORALL>(args);
-    else return mknary<EXISTS>(args);
-  }
 
-  /* HELPER FUNCTIONS */
+
+/* OLD HELPER FUNCTIONS
+  // HELPER FUNCTIONS 
   //normalize comparison expression through dividing both side
   Expr multTrans(Expr t, Expr constY)
   {
@@ -1495,12 +1486,252 @@ namespace ufo
       exit(0);
     }
   }
+  */
 
+
+
+
+  /* GIVEN HELPER FUNCTION */
+  // create forall & exists formulas
+  Expr static createQuantifiedFormulaRestr (Expr def, Expr a, bool forall = false)
+  {// want to have quantifiers in def
+    //if (vars.empty()) return def; 
+    ExprVector args; 
+    args.push_back(a->last()); // push variable y into vars.
+    args.push_back(def);
+    if (forall) return mknary<FORALL>(args);
+    else return mknary<EXISTS>(args);
+  }
+
+  /* GENERAL HELPER FUNCTIONS */
+  //normalize comparison expression through dividing both side
+  Expr multTrans(Expr t, Expr constY)
+  {
+    if (t->arity()==2)
+    {
+      Expr lhs = t->left(), rhs = t->right();
+      while (isOp<MULT>(lhs))//until lhs is no longer *
+      {
+        bool divLeft;
+        Expr lOperand = lhs->left(), rOperand = lhs->right();
+        if (contains(lOperand, constY) ) divLeft = false;
+        else if (contains(rOperand, constY)) divLeft = true;
+        else outs() << "Cannot find variable y in " << *lhs << endl; //debug check
+        rhs = mk<DIV>(rhs, divLeft ? lOperand : rOperand);
+        lhs = divLeft ? rOperand : lOperand;
+      }
+      return (mk(t->op(), lhs, rhs));
+    } else {
+      outs() << "ERROR on invoking multTrans()!" << endl;
+      exit(0); 
+    }
+  }
+  
+  Expr revExpr(Expr s)
+  {
+    if (s->arity() == 2)
+    {
+      Expr lhs = s->left(), rhs = s->right();
+      if (isOpX<LT>(s)) return mk<GT>(rhs, lhs);
+      else if (isOpX<LEQ>(s)) return mk<GEQ>(rhs, lhs);
+      else if (isOpX<GT>(s)) return mk<LT>(rhs, lhs);
+      else if (isOpX<GEQ>(s)) return mk<LEQ>(rhs, lhs);
+      outs() << "ERROR in revExpr(): current comparison for expression ";
+      outs() << *s << " is not supported." << endl;
+      exit(0);
+    } else {
+      outs() << "ERROR in revExpr(): input Expr is not supported, incorrect length." << endl;
+      exit(0);
+    }
+  }
+
+  // Ensuring lhs doesn't have a negative coefficient.
+    Expr negativeCoefCheck(Expr t)
+  {
+    if (t->arity() == 2)
+    {
+      Expr lhs = t->left(), rhs = t->right();
+      if (isOpX<UN_MINUS>(lhs->left()))
+      {
+        Expr coef = lhs->left()->left();
+        lhs = mk(lhs->op(), coef, lhs->right());
+      } else if (isOpX<UN_MINUS>(lhs->right()))
+      {
+        Expr coef = lhs->right()->left();
+        lhs = mk(lhs->op(), lhs->left(), coef);
+      } else {
+        outs() << "ERROR on finding negative value on LHS in negativeCoefCheck()!";
+        exit(0);
+      }
+      rhs = mk<MULT>(mk<UN_MINUS>(mkTerm(mpz_class(1), t->getFactory())), rhs);
+      if (isOpX<LT>(t)) return mk<GT>(lhs, rhs);
+      else if (isOpX<LEQ>(t)) return mk<GEQ>(lhs, rhs);
+      else if (isOpX<GT>(t)) return mk<LT>(lhs, rhs);
+      else if (isOpX<GEQ>(t)) return mk<LEQ>(lhs, rhs);
+      outs() << "ERROR in negativeCoefCheck(): current comparison for expression ";
+      outs() << *t << " is not supported." << endl;
+      exit(0);
+    }
+    outs() << "ERROR in negativeCoefCheck(): input Expr is not supported, incorrect length." << endl;
+    exit(0);
+  }
+  
+  /* INTEGER HELPER FUNCTION */
+  //Use to identify if the expression is all integer.
+  bool intCheck(Expr s)
+  {
+    if (s->arity() == 2)
+    {
+      if (intCheck(s->left()) && intCheck(s->right())) return true;
+      return false;
+    }
+    else if (s->arity() == 1)
+    {
+      if (bind::isIntConst(s)) return true;
+      else if (isOpX<UN_MINUS>(s) && intCheck(s->left())) return true; 
+      return false;
+    }
+    else if (s->arity() == 0)
+    {
+      if (isOpX<MPZ>(s)) return true;
+      return false;
+    }
+    outs() << "Some issue arse on intCheck()." << endl;
+    return false;
+  }
+
+  /* REAL HELPER FUNCTION */
+  //Use to identify if the expression is all real.
+  bool realCheck(Expr s)
+  {
+    if (s->arity() == 2)
+    {
+      if (realCheck(s->left()) && realCheck(s->right())) return true;
+      return false;
+    }
+    else if (s->arity() == 1)
+    {
+      if (bind::isRealConst(s)) return true;
+      else if (isOpX<UN_MINUS>(s) && realCheck(s->left())) return true; 
+      return false;
+    }
+    else if (s->arity() == 0)
+    {
+      if (isOpX<MPQ>(s)) return true;
+      return false;
+    }
+    outs() << "Some issue arse on realCheck()." << endl;
+    return false;
+  }
+  
+  //used when initializing the element for sVec.
+  Expr vecElemInitReal(Expr t, Expr constY)
+  {
+    if (t->arity() == 2)
+    {
+      //ensure y is on lhs.
+      if (contains(t->right(), constY)) t = revExpr(t);
+      Expr lhs = t->left(), rhs = t->right(), constOne = mkTerm(mpz_class(1), t->getFactory());
+      //ensure lhs is not negative
+      if (lhs->arity() == 2)
+      {
+        if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
+          t = negativeCoefCheck(t);
+          lhs = t->left(), rhs = t->right();
+        }
+      }
+      //MULTIPLICATION TRANSFORMATION
+      if (isOp<MULT>(lhs)) t = multTrans(t, constY);
+      return t;
+    } else {
+      outs() << "ERROR on invoking vecElemInitReal! The input Expr t is invalid!" << endl;
+      exit(0);
+    }
+  }
+  
   /**
    * Simple wrapper
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
+
+    outs() << "Printing original SMT formula:\n" << *s << endl << endl;
+    ExprSet outSet;
+    Expr constY, constYTemp = mkTerm <std::string> ("y", s->getFactory());
+
+    // QE FOR INT ONLY EXPR //
+    if (intCheck(s))
+    {
+      constY = bind::intConst(constYTemp);
+      outs() << "Current Expression is Int Number Expression." << endl << endl;
+      outs() << "Integer expression is not currently supported." << endl;
+    }
+
+    // QE FOR REAL ONLY EXPR //
+    else if (realCheck(s))
+    {
+      ExprVector sVec;
+      outs() << "Current Expression is Real Number Expression." << endl << endl;
+      s = simplifyBool(s);
+      ExprSet temp, upVec, loVec; //Use Expr vector instead
+      getConj(s, temp);
+      constY = bind::realConst(constYTemp);
+      // Initializing Expression Vector, ensure y is not on rhs, ensure lhs doesn't have multiplication.
+      for (auto t : temp) sVec.push_back(vecElemInitReal(t, constY));
+
+      // Collecting upper & lower bound
+      for (auto ite = sVec.begin(); ite != sVec.end(); ){
+        if (isOpX<GT>(*ite) || isOpX<GEQ>(*ite)) upVec.insert(*ite);
+        else if (isOpX<LT>(*ite) || isOpX<LEQ>(*ite)) loVec.insert(*ite);
+        else outs() << "Upper & lower bound collection error.\n";
+        ite++;
+      }
+      sVec.clear();
+
+      // Merging upper & lower bound.
+      while (!upVec.empty()) 
+      {
+        Expr upBound = (*upVec.begin())->right();
+        bool upGEQ = isOpX<GEQ>(*upVec.begin()) ? true : false;
+        for (auto loIte = loVec.begin(); loIte != loVec.end(); ++loIte)
+        {
+          Expr loBound = (*loIte)->right();
+          if (upGEQ && isOpX<LEQ>(*loIte))
+            sVec.push_back(mk<LEQ>(upBound, loBound));
+          else
+            sVec.push_back(mk<LT>(upBound, loBound));
+        }
+        upVec.erase(upVec.begin());
+      }
+      loVec.clear();
+
+      outs() << "Following are the conjuncts in Quantifier Eliminated expression: " << endl;
+      for (auto t : sVec) outs() << *t << " ";
+      outs() << endl;
+
+      for(auto t : sVec) outSet.insert(t);
+    } else {
+      outs() << "This program does not support mixed int & real expression." << endl;
+      exit(0);
+    }
+    Expr inpExpr = createQuantifiedFormulaRestr(s, constY);
+    Expr qeExpr = conjoin(outSet, s->getFactory());
+    // Expr notInOrOut = mk<OR>(mk<NEG>(inpExpr), qeExpr);
+    // Expr notOutOrIn = mk<OR>(mk<NEG>(qeExpr), inpExpr);
+    SMTUtils u1(s->getFactory());
+    outs() << "inpExpr: " << *inpExpr << "\nqeExpr: " << *qeExpr << endl;
+    // outs() << "inpExpr: ";
+    // u1.print(inpExpr);
+    // outs() << "\nqeExpr: ";
+    // u1.print(qeExpr);
+    // outs() << endl << endl;
+    outs() << "Input Expression => Quantifier Eliminated Expression: " << u1.implies(inpExpr, qeExpr) << endl;
+    outs() << "Quantifier Eliminated Expression => Input Expression: " << u1.implies(qeExpr, inpExpr) << endl;
+
+    exit(0);
+
+
+  /* OLD BODY CODE
     outs() << "Printing original SMT formula:\n" << *s << endl << endl;
     s = simplifyBool(s);
     ExprSet E, D, G, LE, temp; //Use Expr vector instead
@@ -1607,8 +1838,10 @@ namespace ufo
     for(auto t : LE) final.insert(t);
     SMTUtils u1(s->getFactory());
     outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
+    */
 
-    exit(0);
+
+
 
     ExprSet t_quantified;
     if (t == NULL)
