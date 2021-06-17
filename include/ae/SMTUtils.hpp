@@ -12,28 +12,37 @@ namespace ufo
   
   class SMTUtils {
   private:
-    
+
     ExprFactory &efac;
     EZ3 z3;
     ZSolver<EZ3> smt;
-    
+    bool can_get_model;
+
   public:
-    
+
     SMTUtils (ExprFactory& _efac) :
-    efac(_efac),
-    z3(efac),
-    smt (z3)
-    {}
+      efac(_efac), z3(efac), smt (z3), can_get_model(0) {}
+
+    Expr getModel(Expr v)
+    {
+      if (!can_get_model) return NULL;
+      ExprVector eqs;
+      ZSolver<EZ3>::Model m = smt.getModel();
+      return m.eval(v);
+    }
 
     template <typename T> Expr getModel(T& vars)
     {
+      if (!can_get_model) return NULL;
       ExprVector eqs;
       ZSolver<EZ3>::Model m = smt.getModel();
+      bool res = true;
       for (auto & v : vars)
       {
         Expr e = m.eval(v);
         if (e == NULL)
         {
+          res = false;
           return NULL;
         }
         else if (e != v)
@@ -48,6 +57,7 @@ namespace ufo
           eqs.push_back(mk<EQ>(v, mkTerm (mpz_class (0), efac)));
         }
       }
+      if (!res) return NULL;
       return conjoin (eqs, efac);
     }
 
@@ -61,24 +71,38 @@ namespace ufo
       for (auto & c : cnjs)
       {
         filter (c, bind::IsConst (), inserter (allVars, allVars.begin()));
-        if (isOpX<FORALL>(c))
-        {
-          ExprVector varz;
-          for (int i = 0; i < c->arity() - 1; i++)
-          {
-            varz.push_back(bind::fapp(c->arg(i)));
-          }
-          smt.assertForallExpr(varz, c->last());
-        }
-        else
-        {
-          if (containsOp<FORALL>(c)) return logic::indeterminate;
-          smt.assertExpr(c);
-        }
+        smt.assertExpr(c);
       }
       boost::tribool res = smt.solve ();
+      can_get_model = res ? true : false;
       return res;
     }
+
+    /**
+     * SMT-check
+     */
+    boost::tribool isSat(Expr a, Expr b, Expr c, Expr d, bool reset=true)
+    {
+      ExprSet cnjs;
+      getConj(a, cnjs);
+      getConj(b, cnjs);
+      getConj(c, cnjs);
+      getConj(d, cnjs);
+      return isSat(cnjs, reset);
+    }
+
+    /**
+     * SMT-check
+     */
+    boost::tribool isSat(Expr a, Expr b, Expr c, bool reset=true)
+    {
+      ExprSet cnjs;
+      getConj(a, cnjs);
+      getConj(b, cnjs);
+      getConj(c, cnjs);
+      return isSat(cnjs, reset);
+    }
+
     /**
      * SMT-check
      */
@@ -115,7 +139,7 @@ namespace ufo
     {
       if (isOpX<TRUE>(b)) return true;
       if (isOpX<FALSE>(a)) return true;
-      return ! isSat(a, mkNeg(b));
+      return bool(!isSat(a, mkNeg(b)));
     }
 
     /**
@@ -123,7 +147,7 @@ namespace ufo
      */
     bool isTrue(Expr a){
       if (isOpX<TRUE>(a)) return true;
-      return !isSat(mkNeg(a));
+      return bool(!isSat(mkNeg(a)));
     }
 
     /**
@@ -131,7 +155,8 @@ namespace ufo
      */
     bool isFalse(Expr a){
       if (isOpX<FALSE>(a)) return true;
-      return !isSat(a);
+      if (isOpX<NEQ>(a) && a->left() == a->right()) return true;
+      return bool(!isSat(a));
     }
 
     /**
@@ -147,7 +172,7 @@ namespace ufo
       ExprSet assumptions;
       assumptions.insert(mk<NEQ>(v, val));
 
-      return (!isSat(assumptions, false));
+      return bool((!isSat(assumptions, false)));
     }
 
     /**
@@ -197,8 +222,7 @@ namespace ufo
                        simplifyITE(br1, cond),
                        simplifyITE(br2, mk<NEG>(cond)));
 
-      }
-      else if (isOpX<IMPL>(ex)) {
+      } else if (isOpX<IMPL>(ex)) {
 
         return mk<IMPL>(simplifyITE(ex->left()), simplifyITE(ex->right()));
       } else if (isOpX<AND>(ex) || isOpX<OR>(ex)){
@@ -228,11 +252,9 @@ namespace ufo
           continue;
         }
 
-        ExprSet old;
-        for (Expr e: newCnjs) old.insert(e);
         ExprSet newCnjsTry = newCnjs;
         newCnjsTry.erase(cnj);
-
+        
         Expr newConj = conjoin(newCnjsTry, efac);
         if (implies (newConj, cnj))
           newCnjs.erase(cnj);
@@ -243,11 +265,14 @@ namespace ufo
           Expr new_conj = bind::boolConst(new_name);
           Expr tmp = replaceAll(newConj, cnj, new_conj);
           if (implies (tmp, new_conj)) {
+            errs() << "erased\n";
             newCnjs.erase(cnj);
           }
         }
       }
-      conjs = newCnjs;
+      conjs.clear();
+      for (auto & cnj : newCnjs)
+        conjs.insert(removeRedundantDisjuncts(cnj));
     }
 
     /**
@@ -323,14 +348,94 @@ namespace ufo
     inline static string varType (Expr var)
     {
       if (bind::isIntConst(var))
-      return "Int";
+        return "Int";
       else if (bind::isRealConst(var))
-      return "Real";
+        return "Real";
       else if (bind::isBoolConst(var))
-      return "Bool";
+        return "Bool";
       else if (bind::isConst<ARRAY_TY> (var))
-      return "(Array Int Int)";
+      {
+        Expr name = mkTerm<string> ("", var->getFactory());
+        Expr s1 = bind::mkConst(name, var->last()->right()->left());
+        Expr s2 = bind::mkConst(name, var->last()->right()->right());
+        return string("(Array ") + varType(s1) + string(" ") + varType(s2) + string(")");
+      }
       else return "";
+    }
+
+    template <typename Range1, typename Range2, typename Range3> bool
+      splitUnsatSets(Range1 & src, Range2 & dst1, Range3 & dst2)
+    {
+      if (isSat(src)) return false;
+
+      for (auto & a : src) dst1.push_back(a);
+
+      for (auto it = dst1.begin(); it != dst1.end(); )
+      {
+        dst2.push_back(*it);
+        it = dst1.erase(it);
+        if (isSat(dst1)) break;
+      }
+
+      // now dst1 is SAT, try to get more things from dst2 back to dst1
+
+      for (auto it = dst2.begin(); it != dst2.end(); )
+      {
+        if (!isSat(conjoin(dst1, efac), *it)) { ++it; continue; }
+        dst1.push_back(*it);
+        it = dst2.erase(it);
+      }
+
+      return true;
+    }
+
+    bool isModelSkippable(Expr model, ExprVector& vars, map<int, ExprVector>& cands)
+    {
+      if (model == NULL) return true;
+
+      if (containsOp<EXISTS>(model) || containsOp<FORALL>(model)) return true;
+      
+      for (auto v: vars)
+      {
+        if (!containsOp<ARRAY_TY>(v)) continue;
+
+        Expr tmp = getModel(v);
+        if (tmp != v && !isOpX<CONST_ARRAY>(tmp) && !isOpX<STORE>(tmp))
+        {
+          return true;
+        }
+      }
+
+//      for (auto & a : cands)
+//      {
+//        for (auto & b : a.second)
+//        {
+//          if (containsOp<FORALL>(b)) return true;
+//        }
+//      }
+      return false;
+    }
+
+    bool isModelSkippable(Expr v)
+    {
+      Expr tmp = getModel(v);
+      if (tmp == NULL) return true;
+      if (!containsOp<ARRAY_TY>(v)) return false;
+      if (tmp != v && !isNumeric(v) && !isOpX<CONST_ARRAY>(tmp) && !isOpX<STORE>(tmp)) return true;
+      return false;
+    }
+
+    bool isModelSkippable()
+    {
+      for (auto & v : allVars) if (isModelSkippable(v)) return true;
+      return false;
+    }
+
+    void insertUnique(Expr e, ExprSet& v)
+    {
+      for (auto & a : v)
+        if (isEquiv(a, e)) return;
+      v.insert(e);
     }
 
     void print (Expr e)
@@ -343,10 +448,17 @@ namespace ufo
         for (int i = 0; i < e->arity() - 1; i++)
         {
           Expr var = bind::fapp(e->arg(i));
-          outs () << "(" << *var << " " << varType(var) << ") ";
+          outs () << "(" << *var << " " << varType(var) << ")";
+          if (i != e->arity() - 2) outs () << " ";
         }
-        outs () << "\b) ";
+        outs () << ") ";
         print (e->last());
+        outs () << ")";
+      }
+      else if (isOpX<NEG>(e))
+      {
+        outs () << "(not ";
+        print(e->left());
         outs () << ")";
       }
       else if (isOpX<AND>(e))
@@ -354,24 +466,28 @@ namespace ufo
         outs () << "(and ";
         ExprSet cnjs;
         getConj(e, cnjs);
+        int i = 0;
         for (auto & c : cnjs)
         {
+          i++;
           print(c);
-          outs () << " ";
+          if (i != cnjs.size()) outs () << " ";
         }
-        outs () << "\b)";
+        outs () << ")";
       }
       else if (isOpX<OR>(e))
       {
         outs () << "(or ";
         ExprSet dsjs;
         getDisj(e, dsjs);
+        int i = 0;
         for (auto & d : dsjs)
         {
+          i++;
           print(d);
-          outs () << " ";
+          if (i != dsjs.size()) outs () << " ";
         }
-        outs () << "\b)";
+        outs () << ")";
       }
       else if (isOpX<IMPL>(e) || isOp<ComparissonOp>(e))
       {
@@ -397,18 +513,7 @@ namespace ufo
         print(e->last());
         outs () << ")";
       }
-      else
-      {
-        outs () << z3.toSmtLib (e);
-      }
-    }
-
-    void serialize_formula(Expr form)
-    {
-      smt.reset();
-      smt.assertExpr(form);
-      smt.toSmtLib (outs());
-      outs().flush ();
+      else outs () << z3.toSmtLib (e);
     }
 
     template <typename T> void serialize_formula(T& forms)
@@ -421,14 +526,25 @@ namespace ufo
         ExprVector allVars;
         filter (form->right(), bind::IsConst (), back_inserter (allVars));
         for (auto & b : allVars)
-        {
           outs () << "(" << *b << " " << varType(b) << ")";
-        }
         outs () << ") " << varType(form->left()) << "\n  ";
         print(form->right());
         outs () << ")\n";
       }
       outs().flush ();
+    }
+  
+    void serialize_formula(Expr form)
+    {
+      outs () << "(assert ";
+      print (form);
+      outs () << ")\n";
+
+      // old version (to  merge, maybe?)
+//      smt.reset();
+//      smt.assertExpr(form);
+//      smt.toSmtLib (outs());
+//      outs().flush ();
     }
   };
   
@@ -439,17 +555,17 @@ namespace ufo
   {
     ExprFactory &efac = A->getFactory();
     EZ3 z3(efac);
-    
+
     ExprVector allVars;
     filter (mk<AND>(A,B), bind::IsConst (), back_inserter (allVars));
-    
+
     ExprVector sharedTypes;
-    
+
     for (auto &var: sharedVars) {
       sharedTypes.push_back (bind::typeOf (var));
     }
     sharedTypes.push_back (mk<BOOL_TY> (efac));
-    
+
     // fixed-point object
     ZFixedPoint<EZ3> fp (z3);
     ZParams<EZ3> params (z3);
@@ -458,18 +574,18 @@ namespace ufo
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
     fp.set (params);
-    
+
     Expr errRel = bind::boolConstDecl(mkTerm<string> ("err", efac));
     fp.registerRelation(errRel);
     Expr errApp = bind::fapp (errRel);
-    
+
     Expr itpRel = bind::fdecl (mkTerm<string> ("itp", efac), sharedTypes);
     fp.registerRelation (itpRel);
     Expr itpApp = bind::fapp (itpRel, sharedVars);
-    
+
     fp.addRule(allVars, boolop::limp (A, itpApp));
     fp.addRule(allVars, boolop::limp (mk<AND> (B, itpApp), errApp));
-    
+
     tribool res;
     try {
       res = fp.query(errApp);
@@ -479,9 +595,9 @@ namespace ufo
       outs() << "Z3 ex: " << str << "...\n";
       exit(55);
     }
-    
+
     if (res) return NULL;
-    
+
     return fp.getCoverDelta(itpApp);
   }
   
@@ -491,13 +607,13 @@ namespace ufo
   inline Expr getItp(Expr A, Expr B)
   {
     ExprVector sharedVars;
-    
+
     ExprVector aVars;
     filter (A, bind::IsConst (), back_inserter (aVars));
-    
+
     ExprVector bVars;
     filter (B, bind::IsConst (), back_inserter (bVars));
-    
+
     // computing shared vars:
     for (auto &var: aVars) {
       if (find(bVars.begin(), bVars.end(), var) != bVars.end())
@@ -505,7 +621,7 @@ namespace ufo
         sharedVars.push_back(var);
       }
     }
-    
+
     return getItp(A, B, sharedVars);
   };
   
