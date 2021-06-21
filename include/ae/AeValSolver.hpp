@@ -1392,7 +1392,6 @@ namespace ufo
   // create forall & exists formulas
   Expr static createQuantifiedFormulaRestr (Expr def, Expr a, bool forall = false)
   {// want to have quantifiers in def
-    //if (vars.empty()) return def; 
     ExprVector args; 
     args.push_back(a->last()); // push variable y into vars.
     args.push_back(def);
@@ -1499,12 +1498,67 @@ namespace ufo
   }
   
   /* INTEGER HELPER FUNCTION */
-  Expr intQE(ExprSet s)
+  Expr vecElemInitInt(Expr t, Expr constY)
   {
-    outs() << "Current Expression is Int Number Expression." << endl << endl;
-    outs() << "Integer expression is not currently supported." << endl;
-    exit(0);
-    return NULL;
+    if (isOp<ComparissonOp>(t))
+    {
+      //EQ or NEQ expression are not currently supported.
+      if (isOpX<EQ>(t) || isOpX<NEQ>(t)) return NULL; 
+      //ensure y is on lhs.
+      if (contains(t->right(), constY)) t = revExpr(t);
+      if ( t == NULL ) return NULL;
+      Expr lhs = t->left(), rhs = t->right();
+      //ensure lhs is not negative
+      if (lhs->arity() == 2)
+      {
+        if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
+          t = negativeCoefCheck(t);
+          if (t == NULL) return NULL;
+          lhs = t->left(), rhs = t->right();
+        }
+      }
+      //applying (3), getting rid of LT and GEQ
+      Expr constOne = mkTerm(mpz_class(1), t->getFactory());
+      if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
+      else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+      //MULTIPLICATION TRANSFORMATION
+      if (isOp<MULT>(lhs)) t = multTrans(t, constY);
+      return t;
+    } else {
+      outs() << "The input Expr " << *t << " is not comparison!" << endl;
+      return NULL;
+    }
+  }
+
+  Expr intQE(ExprSet sSet)
+  {
+    outs() << "Current Expression is Int Number Expression." << endl;
+    ExprSet outSet, upVec, loVec;
+    ExprVector sVec;
+    Expr factoryGetter = *(sSet.begin()), constY = getConstYByInput(factoryGetter);
+    // Initializing Expression Vector, ensure y is not on rhs, ensure lhs doesn't have multiplication.
+    for (auto t : sSet) {
+      Expr initEx = vecElemInitInt(t, constY);
+      if (initEx != NULL) sVec.push_back(initEx);
+      else outSet.insert(t);
+    }
+    // Collecting upper & lower bound
+    for (auto ite = sVec.begin(); ite != sVec.end(); ite++) {
+      if (isOpX<GT>(*ite)) loVec.insert(*ite);
+      else if (isOpX<LEQ>(*ite)) upVec.insert(*ite);
+    }
+    sVec.clear();
+    // Merging upper & lower bound.
+    while (!loVec.empty()) {
+      Expr loBound = (*loVec.begin())->right();
+      for (auto loIte = upVec.begin(); loIte != upVec.end(); ++loIte) {
+        Expr upBound = (*loIte)->right();
+        sVec.push_back(mk<LT>(loBound, upBound));
+      }
+      loVec.erase(loVec.begin());
+    }
+    for(auto t : sVec) outSet.insert(t);
+    return conjoin(outSet, factoryGetter->getFactory());
   }
 
 
@@ -1537,6 +1591,7 @@ namespace ufo
       return NULL;
     }
   }
+
   Expr realQE(ExprSet sSet)
   {
     outs() << "Current Expression is Real Number Expression." << endl;
@@ -1551,20 +1606,20 @@ namespace ufo
     }
     // Collecting upper & lower bound
     for (auto ite = sVec.begin(); ite != sVec.end(); ite++) {
-      if (isOpX<GT>(*ite) || isOpX<GEQ>(*ite)) upVec.insert(*ite);
-      else if (isOpX<LT>(*ite) || isOpX<LEQ>(*ite)) loVec.insert(*ite);
+      if (isOpX<GT>(*ite) || isOpX<GEQ>(*ite)) loVec.insert(*ite);
+      else if (isOpX<LT>(*ite) || isOpX<LEQ>(*ite)) upVec.insert(*ite);
     }
     sVec.clear();
     // Merging upper & lower bound.
-    while (!upVec.empty()) {
-      Expr upBound = (*upVec.begin())->right();
-      bool upGEQ = isOpX<GEQ>(*upVec.begin()) ? true : false;
-      for (auto loIte = loVec.begin(); loIte != loVec.end(); ++loIte) {
-        Expr loBound = (*loIte)->right();
-        if (upGEQ && isOpX<LEQ>(*loIte)) sVec.push_back(mk<LEQ>(upBound, loBound));
-        else sVec.push_back(mk<LT>(upBound, loBound));
+    while (!loVec.empty()) {
+      Expr loBound = (*loVec.begin())->right();
+      bool upGEQ = isOpX<GEQ>(*loVec.begin()) ? true : false;
+      for (auto loIte = upVec.begin(); loIte != upVec.end(); ++loIte) {
+        Expr upBound = (*loIte)->right();
+        if (upGEQ && isOpX<LEQ>(*loIte)) sVec.push_back(mk<LEQ>(loBound, upBound));
+        else sVec.push_back(mk<LT>(loBound, upBound));
       }
-      upVec.erase(upVec.begin());
+      loVec.erase(loVec.begin());
     }
     for(auto t : sVec) outSet.insert(t);
     return conjoin(outSet, factoryGetter->getFactory());
