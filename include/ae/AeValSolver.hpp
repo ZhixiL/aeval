@@ -1401,20 +1401,6 @@ namespace ufo
   }
 
   /* GENERAL HELPER FUNCTIONS */
-  // //get a real variable y.
-  // Expr getRealY() 
-  // {
-  //   Expr s;
-  //   Expr constYTemp = mkTerm<std::string>("y", s->getFactory());
-  //   return bind::realConst(constYTemp);
-  // }
-  // //get a integer variable y.
-  // Expr getIntY() 
-  // {
-  //   Expr s;
-  //   Expr constYTemp = mkTerm<std::string>("y", s->getFactory());
-  //   return bind::intConst(constYTemp);
-  // }
   //get a constant y with a type depend on given expression.
   Expr getConstYByInput(Expr s) 
   {
@@ -1422,10 +1408,7 @@ namespace ufo
     Expr intY = bind::intConst(constYTemp), realY = bind::realConst(constYTemp);
     if (contains(s, intY)) return intY;
     else if (contains(s, realY)) return realY;
-    else {
-      outs() << "Input expression does not contain y, no QE needed, exit." << endl;
-      exit(0);
-    } 
+    else return NULL; //Input expression does not contain y, no QE needed.
   }
   //normalize comparison expression through dividing both side
   Expr multTrans(Expr t, Expr constY)
@@ -1516,12 +1499,12 @@ namespace ufo
   }
   
   /* INTEGER HELPER FUNCTION */
-  Expr intQE(Expr s, Expr constY)
+  Expr intQE(ExprSet s)
   {
     outs() << "Current Expression is Int Number Expression." << endl << endl;
     outs() << "Integer expression is not currently supported." << endl;
     exit(0);
-    return s;
+    return NULL;
   }
 
 
@@ -1554,14 +1537,14 @@ namespace ufo
       return NULL;
     }
   }
-  Expr realQE(Expr s, Expr constY)
+  Expr realQE(ExprSet sSet)
   {
     outs() << "Current Expression is Real Number Expression." << endl;
-    ExprSet outSet, temp, upVec, loVec;
+    ExprSet outSet, upVec, loVec;
     ExprVector sVec;
-    getConj(s, temp);
+    Expr factoryGetter = *(sSet.begin()), constY = getConstYByInput(factoryGetter);
     // Initializing Expression Vector, ensure y is not on rhs, ensure lhs doesn't have multiplication.
-    for (auto t : temp) {
+    for (auto t : sSet) {
       Expr initEx = vecElemInitReal(t, constY);
       if (initEx != NULL) sVec.push_back(initEx);
       else outSet.insert(t);
@@ -1584,30 +1567,35 @@ namespace ufo
       upVec.erase(upVec.begin());
     }
     for(auto t : sVec) outSet.insert(t);
-    return conjoin(outSet, s->getFactory());
+    return conjoin(outSet, factoryGetter->getFactory());
   }
   
   /* MIXED HELPER FUNCTIONS */
   // case for identifying if Mixture is usable
-  Expr mixQE(Expr s, Expr constY)
+  Expr mixQE(Expr s)
   {
     ExprSet outSet, temp, sameTypeSet;
+    Expr constY = getConstYByInput(s);
+    if (constY == NULL) return s; // taking care of the y does not exist situation.
     // identify if y is real or int
     bool isRealY = bind::isRealConst(constY) ? true : false;
     // gather conjuncts that's the same type with y into sameTypeSet.
     getConj(s, temp);
     for (auto t : temp) {
-      if (isRealY && contains(t, constY) && (intOrReal(t) == -1))
-        sameTypeSet.insert(t);
-      else if (!isRealY && contains(t, constY) && (intOrReal(t) == 1))
-        sameTypeSet.insert(t);
-      else
-        outSet.insert(t);
+      if (contains (t, constY))
+      {
+        int intVSreal = intOrReal(t);
+        if (isRealY && (intVSreal == -1))
+          sameTypeSet.insert(t);
+        else if (!isRealY && (intVSreal == 1))
+          sameTypeSet.insert(t);
+        else return NULL;
+      }
+      else outSet.insert(t);
     }
-    if (sameTypeSet.empty()) return NULL;
-    Expr qeExpr = conjoin(sameTypeSet, s->getFactory());
-    qeExpr = isRealY ? realQE(qeExpr, constY) : intQE(qeExpr, constY);
-    return mk<AND>(qeExpr, conjoin(outSet, s->getFactory()));
+    if (sameTypeSet.empty()) return NULL; // the Y does not exist situation has been taken care by line 1585
+    outSet.insert(isRealY ? realQE(sameTypeSet) : intQE(sameTypeSet));
+    return conjoin(outSet, s->getFactory());
   }
 
 
@@ -1619,22 +1607,14 @@ namespace ufo
 
     outs() << "Printing original SMT formula:\n" << *s << endl << endl;
     Expr inpExpr, qeExpr;
-    // Initializing constant y, if no y found, then no QE needed, exit.
-    Expr constY = getConstYByInput(s);
-    int intVSreal = intOrReal(s);
-    // QE FOR INT ONLY EXPR //
-    if (intVSreal == 1) qeExpr = intQE(s, constY);
-    // QE FOR REAL ONLY EXPR //
-    else if (intVSreal == -1) qeExpr = realQE(s, constY);
-    // QE FOR MIXED IF POSSIBLE //
-    else {
-      qeExpr = mixQE(s, constY);
-      if(qeExpr == NULL) {
-        outs() << "The mixed int & real expression is not supported." << endl;
-        exit(0);
-      }
+    qeExpr = mixQE(s);
+    if (qeExpr == NULL) {
+      outs() << "This Expr is not supported, QE error." << endl;
+      exit(0);
     }
-    inpExpr = createQuantifiedFormulaRestr(s, constY);
+    Expr constY = getConstYByInput(s);
+    if (constY == NULL) inpExpr = s;
+    else inpExpr = createQuantifiedFormulaRestr(s, constY);
     SMTUtils u1(s->getFactory());
     outs() << "inpExpr: " << *inpExpr << "\nqeExpr: " << *qeExpr << endl;
     outs() << "Input Expression => Quantifier Eliminated Expression: " << u1.implies(inpExpr, qeExpr) << endl;
