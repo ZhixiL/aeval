@@ -438,6 +438,41 @@ namespace ufo
       v.insert(e);
     }
 
+    Expr getTrueLiterals(Expr ex, Expr model)
+    {
+      ExprVector ites;
+      getITEs(ex, ites);
+      if (ites.empty())
+      {
+        ExprSet tmp;
+        getLiterals(ex, tmp);
+        for (auto it = tmp.begin(); it != tmp.end(); ){
+          if (isSat(model, (Expr)*it)) ++it;
+          else it = tmp.erase(it);
+        }
+        return conjoin(tmp, efac);
+      }
+      else
+      {
+        // eliminate ITEs first
+        for (auto it = ites.begin(); it != ites.end();)
+        {
+          if (isSat(model, (Expr)(*it)->left()))
+          {
+            ex = replaceAll(ex, *it, (*it)->right());
+            ex = mk<AND>(ex, (*it)->left());
+          }
+          else
+          {
+            ex = replaceAll(ex, *it, (*it)->last());
+            ex = mk<AND>(ex, mkNeg((*it)->left()));
+          }
+          it = ites.erase(it);
+        }
+        return getTrueLiterals(simplifyBool(simplifyArithm(ex)), model);
+      }
+    }
+
     void print (Expr e)
     {
       if (isOpX<FORALL>(e) || isOpX<EXISTS>(e))

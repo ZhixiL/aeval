@@ -179,6 +179,30 @@ namespace ufo
       return res;
     }
 
+    Expr mixQE(Expr s, Expr constVar);
+
+    Expr mixQEMethod(Expr model, Expr constVar, Expr t)
+    {
+      SMTUtils u1(t->getFactory());
+      Expr temp = u1.getTrueLiterals(t, model);
+      return mixQE(temp, constVar);
+    }
+
+    Expr modelToExpr(ZSolver<EZ3>::Model &m, Expr t)
+    {
+      ExprVector eqs;
+      Expr e = m.eval(t);
+      if (e == NULL)
+        return NULL;
+      else {
+        if (bind::isBoolConst(t))
+          eqs.push_back(mk<EQ>(t, mk<TRUE>(efac)));
+        else if (bind::isIntConst(t))
+          eqs.push_back(mk<EQ>(t, mkTerm(mpz_class(0), efac)));
+      }
+      return conjoin (eqs, efac);
+    }
+
     /**
      * Extract MBP and local Skolem
      */
@@ -190,7 +214,10 @@ namespace ufo
       for (auto & exp : v)
       {
         ExprMap map;
-        pr = z3_qe_model_project_skolem (z3, m, exp, pr, map);
+        // pr = z3_qe_model_project_skolem (z3, m, exp, pr, map);
+        // Expr temp = m.eval(exp);
+        // Expr temp = modelToExpr(m, t);
+        pr = mixQEMethod(modelToExpr(m, t), exp, t);
         if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
 
@@ -1412,7 +1439,7 @@ namespace ufo
     else return NULL; //Input expression does not contain y, no QE needed.
   }
   //normalize comparison expression through dividing both side
-  Expr multTrans(Expr t, Expr constY)
+  Expr multTrans(Expr t, Expr constVar)
   {
     if (isOp<ComparissonOp>(t))
     {
@@ -1421,8 +1448,8 @@ namespace ufo
       {
         bool divLeft;
         Expr lOperand = lhs->left(), rOperand = lhs->right();
-        if (contains(lOperand, constY) ) divLeft = false;
-        else if (contains(rOperand, constY)) divLeft = true;
+        if (contains(lOperand, constVar) ) divLeft = false;
+        else if (contains(rOperand, constVar)) divLeft = true;
         else outs() << "Cannot find variable y in " << *lhs << endl; //debug check
         rhs = mk<DIV>(rhs, divLeft ? lOperand : rOperand);
         lhs = divLeft ? rOperand : lOperand;
@@ -1501,12 +1528,11 @@ namespace ufo
   
   
   /* INTEGER HELPER FUNCTION */
-  Expr divTransHelper(Expr t)
+  Expr divTransHelper(Expr t, Expr constVar)
   {
-    Expr constY = getConstYByInput(t);
     if (t->arity() == 2) {
       Expr lhs = t->left(), rhs = t->right(), y, coef, one = mkTerm(mpz_class(1), t->getFactory());
-      if (contains(lhs->left(), constY)) y = lhs->left(), coef = lhs->right();
+      if (contains(lhs->left(), constVar)) y = lhs->left(), coef = lhs->right();
       else y = lhs->right(), coef = lhs->left();
       return mk(t->op(), y, mk<MINUS>(mk<MULT>(mk<PLUS>(rhs, one), coef), one));
     } else {
@@ -1515,7 +1541,7 @@ namespace ufo
     }
   }
 
-  Expr divMultTransInt(Expr t)
+  Expr divMultTransInt(Expr t, Expr constVar)
   {
     Expr lhs = t->left(), rhs = t->right();
     if (lhs->arity() == 2) {
@@ -1533,7 +1559,7 @@ namespace ufo
             outs() << *t << " contains coefficient that's not a integer constant! Critical error, quit!" << endl;
             exit(0); //critical error
           }
-        } else if (isOpX<DIV>(lhs)) t = divTransHelper(t);
+        } else if (isOpX<DIV>(lhs)) t = divTransHelper(t, constVar);
         lhs = t->left(), rhs = t->right();
         if (lhs->arity() == 1) break;
       }
@@ -1542,14 +1568,14 @@ namespace ufo
     } else return t;
   }
 
-  Expr vecElemInitInt(Expr t, Expr constY)
+  Expr vecElemInitInt(Expr t, Expr constVar)
   {
     if (isOp<ComparissonOp>(t))
     {
       //EQ or NEQ expression are not currently supported.
       if (isOpX<EQ>(t) || isOpX<NEQ>(t)) return NULL; 
       //ensure y is on lhs.
-      if (contains(t->right(), constY)) t = revExpr(t);
+      if (contains(t->right(), constVar)) t = revExpr(t);
       if ( t == NULL ) return NULL;
       Expr lhs = t->left(), rhs = t->right();
       //ensure lhs is not negative
@@ -1566,7 +1592,7 @@ namespace ufo
       else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
       //Single conjunct Mult & Div transformation.
       // outs() << "\nVecElemInitInt before t: " << *t << endl;
-      if (isOp<MULT>(lhs) || isOp<DIV>(lhs)) t = divMultTransInt(t);
+      if (isOp<MULT>(lhs) || isOp<DIV>(lhs)) t = divMultTransInt(t, constVar);
       // outs() << "VecElemInitInt after t: " << *t << endl << endl;
       return t;
     } else {
@@ -1575,20 +1601,20 @@ namespace ufo
     }
   }
   // Helper function for coefTrans
-  Expr coefApply(Expr t, int LCM)
+  Expr coefApply(Expr t, Expr constVar, int LCM)
   {
-    Expr lhs = t->left(), rhs = t->right(), constY = getConstYByInput(t);
+    Expr lhs = t->left(), rhs = t->right();
     Expr newCoef = mkTerm(mpz_class(LCM), t->getFactory());
     if (isOp<MULT>(lhs)) {
       Expr origCoef = (isOpX<MPZ>(lhs->left())) ? lhs->left() : lhs->right();
       Expr rhsCoef = mkTerm(mpz_class(LCM / boost::lexical_cast<int>(origCoef)), t->getFactory());
       rhs = mk<MULT>(rhsCoef, rhs);
     } else rhs = mk<MULT>(newCoef, rhs);
-    lhs = mk<MULT>(newCoef, constY);
+    lhs = mk<MULT>(newCoef, constVar);
     return (mk(t->op(), lhs, rhs));
   }
 
-  ExprVector coefTrans(ExprVector sVec)
+  ExprVector coefTrans(ExprVector sVec, Expr constVar)
   {
     // sVec = divTransIntVec(sVec);
     ExprVector outVec;
@@ -1610,57 +1636,31 @@ namespace ufo
       else ++LCM;
     }
     // Making all Coefs for y into LCM
-    for (auto t : sVec) outVec.push_back(coefApply(t, LCM));
+    for (auto t : sVec) outVec.push_back(coefApply(t, constVar, LCM));
 
     // Append the coefficient at the end
     outVec.push_back(mkTerm(mpz_class(LCM), (*sVec.begin())->getFactory()));
     return outVec;
   }
   
-  Expr intQE(ExprSet sSet)
+  Expr intQE(ExprSet sSet, Expr constVar)
   {
     outs() << "Current expression contains integer y." << endl;
     ExprSet outSet, upVec, loVec;
     ExprVector sVec;
-    Expr factoryGetter = *(sSet.begin()), constY = getConstYByInput(factoryGetter);
-
-    // output tester
-    // Expr origTemp = conjoin(sSet, factoryGetter->getFactory());
+    Expr factoryGetter = *(sSet.begin());
 
     /* Transformation Stage */
     for (auto t : sSet) {
-      Expr initEx = vecElemInitInt(t, constY);
+      Expr initEx = vecElemInitInt(t, constVar);
       if (initEx != NULL) sVec.push_back(initEx);
       else outSet.insert(t);
     }
 
-    // output Tester
-    // ExprSet temp;
-    // Expr origLIA, coefProcLIA;
-    // for (auto t : sVec) temp.insert(t);
-    // origLIA = conjoin(temp, factoryGetter->getFactory());
-    // SMTUtils u1(factoryGetter->getFactory());
-    // temp.clear();
-    // outs() << "Test performed to check origTemp => origLIA :\n";
-    // outs() << "Original SMT formula: " << *origTemp << "\nOriginal LIA: " << *origLIA << endl;
-    // outs() << "Original Temp => Original LIA: " << u1.implies(origTemp, origLIA) << endl;
-    // outs() << "Original LIA => Original Temp: " << u1.implies(origLIA, origTemp) << endl;
-
     // Coefficient Transformation, and extract the coefficient.
-    sVec = coefTrans(sVec); 
+    sVec = coefTrans(sVec, constVar); 
     Expr coef = *(sVec.end() - 1);
     sVec.pop_back();
-    /* END of Transformation Stage */
-
-    // output Tester continue
-    // outs() << "Coefficient: " << *coef << endl;
-    // for (auto t : sVec) temp.insert(t);
-    // coefProcLIA = conjoin(temp, factoryGetter->getFactory());
-    // outs() << endl;
-    // outs() << "Test performed to check coefficient transformation:\n";
-    // outs() << "Original LIA: " << *origLIA << "\nCoef Processed LIA: " << *coefProcLIA << endl;
-    // outs() << "Original LIA => Coef Processed LIA: " << u1.implies(origLIA, coefProcLIA) << endl;
-    // outs() << "Coef Processed LIA => Original LIA: " << u1.implies(coefProcLIA, origLIA) << endl;
 
     // Collecting upper & lower bound
     for (auto ite = sVec.begin(); ite != sVec.end(); ite++) {
@@ -1685,14 +1685,14 @@ namespace ufo
 
   /* REAL HELPER FUNCTION */
   //used when initializing the element for sVec.
-  Expr vecElemInitReal(Expr t, Expr constY)
+  Expr vecElemInitReal(Expr t, Expr constVar)
   {
     if (isOp<ComparissonOp>(t))
     {
       //EQ or NEQ expression are not currently supported.
       if (isOpX<EQ>(t) || isOpX<NEQ>(t)) return NULL; 
       //ensure y is on lhs.
-      if (contains(t->right(), constY)) t = revExpr(t);
+      if (contains(t->right(), constVar)) t = revExpr(t);
       if ( t == NULL ) return NULL;
       Expr lhs = t->left(), rhs = t->right();
       //ensure lhs is not negative
@@ -1705,7 +1705,7 @@ namespace ufo
         }
       }
       //MULTIPLICATION TRANSFORMATION
-      if (isOp<MULT>(lhs)) t = multTrans(t, constY);
+      if (isOp<MULT>(lhs)) t = multTrans(t, constVar);
       return t;
     } else {
       outs() << "The input Expr " << *t << " is not comparison!" << endl;
@@ -1713,15 +1713,15 @@ namespace ufo
     }
   }
 
-  Expr realQE(ExprSet sSet)
+  Expr realQE(ExprSet sSet, Expr constVar)
   {
     outs() << "Current expression contains real y." << endl;
     ExprSet outSet, upVec, loVec;
     ExprVector sVec;
-    Expr factoryGetter = *(sSet.begin()), constY = getConstYByInput(factoryGetter);
+    Expr factoryGetter = *(sSet.begin());
     // Initializing Expression Vector, ensure y is not on rhs, ensure lhs doesn't have multiplication.
     for (auto t : sSet) {
-      Expr initEx = vecElemInitReal(t, constY);
+      Expr initEx = vecElemInitReal(t, constVar);
       if (initEx != NULL) sVec.push_back(initEx);
       else outSet.insert(t);
     }
@@ -1748,20 +1748,20 @@ namespace ufo
 
   /* MIXED HELPER FUNCTIONS */
   // case for identifying if Mixture is usable
-  Expr mixQE(Expr s)
+  Expr mixQE(Expr s, Expr constVar)
   {
     ExprSet outSet, temp, sameTypeSet;
-    Expr constY = getConstYByInput(s);
-    if (constY == NULL) return s; // taking care of the y does not exist situation.
+    // Expr constY = getConstYByInput(s);
+    if (constVar == NULL) return s; // taking care of the y does not exist situation.
     // identify and store the type of y.
-    Expr yType = bind::typeOf(constY);
+    Expr yType = bind::typeOf(constVar);
     // Support for boolean case.
     if (yType == mk<BOOL_TY>(s->efac()))
-      return simplifyBool(mk<OR>(replaceAll(s, constY, mk<TRUE>(s->efac())), replaceAll(s, constY, mk<FALSE>(s->efac()))));
+      return simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
     // gather conjuncts that's the same type with y into sameTypeSet.
     getConj(s, temp);
     for (auto t : temp) {
-      if (contains (t, constY)) {
+      if (contains (t, constVar)) {
         int intVSreal = intOrReal(t);
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
@@ -1772,7 +1772,7 @@ namespace ufo
       else outSet.insert(t);
     }
     if (sameTypeSet.empty()) return NULL; // the Y does not exist situation has been taken care by line 1585
-    outSet.insert(yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet) : intQE(sameTypeSet));
+    outSet.insert(yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet, constVar) : intQE(sameTypeSet, constVar));
     
     // //tester
     // Expr qeTemp = (yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet) : intQE(sameTypeSet));
@@ -1794,7 +1794,7 @@ namespace ufo
 
     outs() << "Printing original SMT formula:\n" << *s << endl << endl;
     Expr inpExpr, qeExpr, constY = getConstYByInput(s);
-    qeExpr = mixQE(s);
+    qeExpr = mixQE(s, constY);
     if (qeExpr == NULL) {
       outs() << "This Expr " << *s << " is not supported, QE error." << endl;
       exit(0);
