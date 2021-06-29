@@ -181,27 +181,61 @@ namespace ufo
 
     Expr mixQE(Expr s, Expr constVar);
 
-    Expr mixQEMethod(Expr model, Expr constVar, Expr t)
+    Expr getTrueLiterals(Expr ex, ZSolver<EZ3>::Model &m)
     {
-      SMTUtils u1(t->getFactory());
-      Expr temp = u1.getTrueLiterals(t, model);
+      ExprVector ites;
+      getITEs(ex, ites);
+      if (ites.empty())
+      {
+        ExprSet tmp;
+        getLiterals(ex, tmp);
+        for (auto it = tmp.begin(); it != tmp.end(); ){
+          if (isOpX<TRUE>(m.eval((Expr)*it))) ++it;
+          else it = tmp.erase(it);
+        }
+        return conjoin(tmp, efac);
+      }
+      else
+      {
+        // eliminate ITEs first
+        for (auto it = ites.begin(); it != ites.end();)
+        {
+          if (isOpX<TRUE>((Expr)(*it)->left()))
+          {
+            ex = replaceAll(ex, *it, (*it)->right());
+            ex = mk<AND>(ex, (*it)->left());
+          }
+          else
+          {
+            ex = replaceAll(ex, *it, (*it)->last());
+            ex = mk<AND>(ex, mkNeg((*it)->left()));
+          }
+          it = ites.erase(it);
+        }
+        return getTrueLiterals(simplifyBool(simplifyArithm(ex)), m);
+      }
+    }
+
+    Expr mixQEMethod(ZSolver<EZ3>::Model &m, Expr constVar, Expr t)
+    {
+      Expr temp = getTrueLiterals(t, m);
       return mixQE(temp, constVar);
     }
 
-    Expr modelToExpr(ZSolver<EZ3>::Model &m, Expr t)
-    {
-      ExprVector eqs;
-      Expr e = m.eval(t);
-      if (e == NULL)
-        return NULL;
-      else {
-        if (bind::isBoolConst(t))
-          eqs.push_back(mk<EQ>(t, mk<TRUE>(efac)));
-        else if (bind::isIntConst(t))
-          eqs.push_back(mk<EQ>(t, mkTerm(mpz_class(0), efac)));
-      }
-      return conjoin (eqs, efac);
-    }
+//    Expr modelToExpr(ZSolver<EZ3>::Model &m, Expr t)
+//    {
+//      ExprVector eqs;
+//      Expr e = m.eval(t);
+//      if (e == NULL)
+//        return NULL;
+//      else {
+//        if (bind::isBoolConst(t))
+//          eqs.push_back(mk<EQ>(t, mk<TRUE>(efac)));
+//        else if (bind::isIntConst(t))
+//          eqs.push_back(mk<EQ>(t, mkTerm(mpz_class(0), efac)));
+//      }
+//      return conjoin (eqs, efac);
+//    }
 
     /**
      * Extract MBP and local Skolem
@@ -217,7 +251,7 @@ namespace ufo
         // pr = z3_qe_model_project_skolem (z3, m, exp, pr, map);
         // Expr temp = m.eval(exp);
         // Expr temp = modelToExpr(m, t);
-        pr = mixQEMethod(modelToExpr(m, t), exp, t);
+        pr = mixQEMethod(m, exp, t);
         if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
 
