@@ -12,6 +12,8 @@ namespace ufo
 
   /** engine to solve validity of \forall-\exists formulas and synthesize Skolem relation */
 
+  Expr mixQE(Expr s, Expr constVar);
+
   class AeValSolver {
   private:
 
@@ -179,8 +181,6 @@ namespace ufo
       return res;
     }
 
-    Expr mixQE(Expr s, Expr constVar);
-
     Expr getTrueLiterals(Expr ex, ZSolver<EZ3>::Model &m)
     {
       ExprVector ites;
@@ -242,13 +242,13 @@ namespace ufo
      */
     void getMBPandSkolem(ZSolver<EZ3>::Model &m)
     {
-      Expr pr = t;
+      Expr pr = t, tempPr = t;
       ExprMap substsMap;
       ExprMap modelMap;
       for (auto & exp : v)
       {
         ExprMap map;
-        // pr = z3_qe_model_project_skolem (z3, m, exp, pr, map);
+        tempPr = z3_qe_model_project_skolem (z3, m, exp, pr, map);
         // Expr temp = m.eval(exp);
         // Expr temp = modelToExpr(m, t);
         pr = mixQEMethod(m, exp, t);
@@ -260,6 +260,8 @@ namespace ufo
       someEvals.push_back(modelMap);
       skolMaps.push_back(substsMap);
       projections.push_back(pr);
+      outs() << "current MBP: " << pr << "\n";
+      outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n\n";
       partitioning_size++;
     }
 
@@ -1551,6 +1553,7 @@ namespace ufo
     filter(s, bind::IsConst(), back_inserter(sVec));
     for (auto ite : sVec)
     {
+      // outs() << "*ite: " << *ite  << isOpX<MPZ>(ite) << endl;
       if (bind::isIntConst(ite) || isOpX<MPZ>(ite)) ++intCt;
       else if (bind::isRealConst(ite) || isOpX<MPQ>(ite)) ++realCt;
       else outs() << "Error identifying: " << *ite << " in intOrReal()." <<endl;
@@ -1679,18 +1682,17 @@ namespace ufo
   
   Expr intQE(ExprSet sSet, Expr constVar)
   {
-    outs() << "Current expression contains integer y." << endl;
+    // outs() << "Current expression contains integer variable." << endl;
     ExprSet outSet, upVec, loVec;
     ExprVector sVec;
     Expr factoryGetter = *(sSet.begin());
-
     /* Transformation Stage */
     for (auto t : sSet) {
       Expr initEx = vecElemInitInt(t, constVar);
       if (initEx != NULL) sVec.push_back(initEx);
       else outSet.insert(t);
     }
-
+    
     // Coefficient Transformation, and extract the coefficient.
     sVec = coefTrans(sVec, constVar); 
     Expr coef = *(sVec.end() - 1);
@@ -1749,7 +1751,7 @@ namespace ufo
 
   Expr realQE(ExprSet sSet, Expr constVar)
   {
-    outs() << "Current expression contains real y." << endl;
+    // outs() << "Current expression contains real variable." << endl;
     ExprSet outSet, upVec, loVec;
     ExprVector sVec;
     Expr factoryGetter = *(sSet.begin());
@@ -1784,8 +1786,9 @@ namespace ufo
   // case for identifying if Mixture is usable
   Expr mixQE(Expr s, Expr constVar)
   {
+    // outs() << "Expression before mixQE: " << *s << endl;
+
     ExprSet outSet, temp, sameTypeSet;
-    // Expr constY = getConstYByInput(s);
     if (constVar == NULL) return s; // taking care of the y does not exist situation.
     // identify and store the type of y.
     Expr yType = bind::typeOf(constVar);
@@ -1797,6 +1800,7 @@ namespace ufo
     for (auto t : temp) {
       if (contains (t, constVar)) {
         int intVSreal = intOrReal(t);
+        // outs() << "so far so good: " << intVSreal << t << endl;
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
         else if (yType == mk<INT_TY>(s->efac()) && (intVSreal == 1))
@@ -1815,7 +1819,7 @@ namespace ufo
     // if (yType == mk<REAL_TY>(s->efac())) outs() << "The real part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
     // else outs() << "The int part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
     // outSet.insert(qeTemp);
-
+    // outs() << "Sample mixQE output: " << *conjoin(outSet, s->getFactory()) << endl;
     return conjoin(outSet, s->getFactory());
   }
 
@@ -1826,26 +1830,26 @@ namespace ufo
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
 
-    outs() << "Printing original SMT formula:\n" << *s << endl << endl;
-    Expr inpExpr, qeExpr, constY = getConstYByInput(s);
-    qeExpr = mixQE(s, constY);
-    if (qeExpr == NULL) {
-      outs() << "This Expr " << *s << " is not supported, QE error." << endl;
-      exit(0);
-    }
-    if (constY == NULL) inpExpr = s;
-    else inpExpr = createQuantifiedFormulaRestr(s, constY);
-    SMTUtils u1(s->getFactory());
-    // outs() << "Final Test:" << endl;
-    // auto start = std::chrono::system_clock::now();
-    outs() << "inpExpr: " << *inpExpr << "\nqeExpr: " << *qeExpr << endl;
-    outs() << "Input Expression => Quantifier Eliminated Expression: " << u1.implies(inpExpr, qeExpr) << endl;
-    // outs() << "model: \n" << u1.getModel() << endl; 
-    outs() << "Quantifier Eliminated Expression => Input Expression: " << u1.implies(qeExpr, inpExpr) << endl;
-    // auto end = std::chrono::system_clock::now();
-    // std::chrono::duration<double> duration = end-start;
-    // outs() << "Time for final test execution: " << duration.count() << " seconds" << endl;
-    exit(0);
+    // outs() << "Printing original SMT formula:\n" << *s << endl << endl;
+    // Expr inpExpr, qeExpr, constY = getConstYByInput(s);
+    // qeExpr = mixQE(s, constY);
+    // if (qeExpr == NULL) {
+    //   outs() << "This Expr " << *s << " is not supported, QE error." << endl;
+    //   exit(0);
+    // }
+    // if (constY == NULL) inpExpr = s;
+    // else inpExpr = createQuantifiedFormulaRestr(s, constY);
+    // SMTUtils u1(s->getFactory());
+    // // outs() << "Final Test:" << endl;
+    // // auto start = std::chrono::system_clock::now();
+    // outs() << "inpExpr: " << *inpExpr << "\nqeExpr: " << *qeExpr << endl;
+    // outs() << "Input Expression => Quantifier Eliminated Expression: " << u1.implies(inpExpr, qeExpr) << endl;
+    // // outs() << "model: \n" << u1.getModel() << endl; 
+    // outs() << "Quantifier Eliminated Expression => Input Expression: " << u1.implies(qeExpr, inpExpr) << endl;
+    // // auto end = std::chrono::system_clock::now();
+    // // std::chrono::duration<double> duration = end-start;
+    // // outs() << "Time for final test execution: " << duration.count() << " seconds" << endl;
+    // exit(0);
 
 
 
