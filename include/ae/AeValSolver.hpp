@@ -152,8 +152,8 @@ namespace ufo
 
         ZSolver<EZ3>::Model m = smt.getModel();
 
-        // if (debug && false)
-        if (true)
+        if (debug && false)
+        // if (true)
         {
           outs() << "\nmodel " << partitioning_size << ":\n";
           for (auto &exp: stVars)
@@ -225,22 +225,16 @@ namespace ufo
       return simplifyArithm(temp);
     }
 
-    Expr getDisjProj()
-    {
-      return disjoin(projections, efac);
-    }
-
-    Expr getExistentialS()
+    void lastSanityCheck()
     {
       ExprVector args;
       for (auto temp : v) args.push_back(temp->last());
-      args.push_back(s);
-      return mknary<EXISTS>(args);
-    }
-
-    Expr getT()
-    {
-      return t;
+      args.push_back(mk<OR>(mkNeg(s), t));
+      Expr sImpT =  mknary<EXISTS>(args);
+      Expr disjProj = disjoin(projections, efac);
+      outs() << "\nDisjunctions of projections: " << *disjProj << "\nexists v. s => t: " << sImpT << endl;
+      SMTUtils u1(t->getFactory());
+      outs() << "'exists v. s => t' isEquiv to 'disjunctions of projections': " << u1.isEquiv(disjProj, sImpT) << "\n\n";
     }
 
     /**
@@ -1865,8 +1859,6 @@ namespace ufo
     // exit(0);
 
 
-
-
     ExprSet t_quantified;
     if (t == NULL)
     {
@@ -1917,21 +1909,13 @@ namespace ufo
 
     if (ae.solve()){
       outs () << "Iter: " << ae.getPartitioningSize() << "; Result: invalid\n";
+      ae.lastSanityCheck();
       ae.printModelNeg();
       outs() << "\nvalid subset:\n";
       u.serialize_formula(simplifyBool(simplifyArithm(ae.getValidSubset(compact))));
     } else {
       outs () << "Iter: " << ae.getPartitioningSize() << "; Result: valid\n";
-
-      Expr temp = ae.getDisjProj();
-      outs() << "Disjunctions of projections: " << *temp << endl;
-      Expr s_test = ae.getExistentialS(), t_test = ae.getT();
-      outs() << "exists v. s: " << *s_test << "\nt: " << *t_test << endl;
-      Expr sImpT = mk<OR>(mkNeg(s_test), t_test);
-      outs() << "exists v. s => t: " << sImpT << endl;
-      SMTUtils u1(t->getFactory());
-      outs() << "exists v. s => t equivalent to disjunctions of projections: " << u1.isEquiv(temp, sImpT) << endl;
-
+      ae.lastSanityCheck();
       if (skol)
       {
         Expr skol = ae.getSkolemFunction(compact);
