@@ -152,7 +152,8 @@ namespace ufo
 
         ZSolver<EZ3>::Model m = smt.getModel();
 
-        if (debug && false)
+        // if (debug && false)
+        if (true)
         {
           outs() << "\nmodel " << partitioning_size << ":\n";
           for (auto &exp: stVars)
@@ -219,23 +220,28 @@ namespace ufo
     Expr mixQEMethod(ZSolver<EZ3>::Model &m, Expr constVar, Expr t)
     {
       Expr temp = getTrueLiterals(t, m);
-      return mixQE(temp, constVar);
+      temp = mixQE(temp, constVar);
+      // return temp;
+      return simplifyArithm(temp);
     }
 
-//    Expr modelToExpr(ZSolver<EZ3>::Model &m, Expr t)
-//    {
-//      ExprVector eqs;
-//      Expr e = m.eval(t);
-//      if (e == NULL)
-//        return NULL;
-//      else {
-//        if (bind::isBoolConst(t))
-//          eqs.push_back(mk<EQ>(t, mk<TRUE>(efac)));
-//        else if (bind::isIntConst(t))
-//          eqs.push_back(mk<EQ>(t, mkTerm(mpz_class(0), efac)));
-//      }
-//      return conjoin (eqs, efac);
-//    }
+    Expr getDisjProj()
+    {
+      return disjoin(projections, efac);
+    }
+
+    Expr getExistentialS()
+    {
+      ExprVector args;
+      for (auto temp : v) args.push_back(temp->last());
+      args.push_back(s);
+      return mknary<EXISTS>(args);
+    }
+
+    Expr getT()
+    {
+      return t;
+    }
 
     /**
      * Extract MBP and local Skolem
@@ -248,10 +254,8 @@ namespace ufo
       for (auto & exp : v)
       {
         ExprMap map;
-        tempPr = z3_qe_model_project_skolem (z3, m, exp, pr, map);
-        // Expr temp = m.eval(exp);
-        // Expr temp = modelToExpr(m, t);
-        pr = mixQEMethod(m, exp, t);
+        tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
+        pr = mixQEMethod(m, exp, pr);
         if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
 
@@ -261,7 +265,14 @@ namespace ufo
       skolMaps.push_back(substsMap);
       projections.push_back(pr);
       outs() << "current MBP: " << pr << "\n";
-      outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n\n";
+      outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n";
+      if (false)
+      {
+      SMTUtils u1(t->getFactory());
+      outs() << "Checking implications: \n";
+      outs() << "cur MBP => z3_qe_model_project_skolem: " << u1.implies(pr, tempPr) << endl;
+      outs() << "z3_qe_model_project_skolem => cur MBP: " << u1.implies(tempPr, pr) << endl;
+      }
       partitioning_size++;
     }
 
@@ -1673,8 +1684,8 @@ namespace ufo
       else ++LCM;
     }
     // Making all Coefs for y into LCM
-    for (auto t : sVec) outVec.push_back(coefApply(t, constVar, LCM));
-
+    if (LCM > 1) for (auto t : sVec) outVec.push_back(coefApply(t, constVar, LCM));
+    else for (auto t : sVec) outVec.push_back(t);
     // Append the coefficient at the end
     outVec.push_back(mkTerm(mpz_class(LCM), (*sVec.begin())->getFactory()));
     return outVec;
@@ -1705,12 +1716,13 @@ namespace ufo
     }
     sVec.clear();
     // Merging upper & lower bound.
+    bool divFlag = boost::lexical_cast<int>(coef) > 1 ? true : false;
     while (!loVec.empty()) {
       Expr loBound = (*loVec.begin())->right();
       for (auto loIte = upVec.begin(); loIte != upVec.end(); ++loIte) {
         Expr upBound = (*loIte)->right();
         sVec.push_back(mk<LT>(loBound, upBound));
-        sVec.push_back(mk<LT>(mk<IDIV>(loBound, coef), mk<IDIV>(upBound, coef)));
+        if (divFlag)  sVec.push_back(mk<LT>(mk<IDIV>(loBound, coef), mk<IDIV>(upBound, coef)));
       }
       loVec.erase(loVec.begin());
     }
@@ -1819,6 +1831,7 @@ namespace ufo
     // if (yType == mk<REAL_TY>(s->efac())) outs() << "The real part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
     // else outs() << "The int part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
     // outSet.insert(qeTemp);
+
     // outs() << "Sample mixQE output: " << *conjoin(outSet, s->getFactory()) << endl;
     return conjoin(outSet, s->getFactory());
   }
@@ -1909,6 +1922,16 @@ namespace ufo
       u.serialize_formula(simplifyBool(simplifyArithm(ae.getValidSubset(compact))));
     } else {
       outs () << "Iter: " << ae.getPartitioningSize() << "; Result: valid\n";
+
+      Expr temp = ae.getDisjProj();
+      outs() << "Disjunctions of projections: " << *temp << endl;
+      Expr s_test = ae.getExistentialS(), t_test = ae.getT();
+      outs() << "exists v. s: " << *s_test << "\nt: " << *t_test << endl;
+      Expr sImpT = mk<OR>(mkNeg(s_test), t_test);
+      outs() << "exists v. s => t: " << sImpT << endl;
+      SMTUtils u1(t->getFactory());
+      outs() << "exists v. s => t equivalent to disjunctions of projections: " << u1.isEquiv(temp, sImpT) << endl;
+
       if (skol)
       {
         Expr skol = ae.getSkolemFunction(compact);
