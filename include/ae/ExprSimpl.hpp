@@ -201,7 +201,8 @@ namespace ufo
 
   inline static bool isNumeric(Expr a)
   {
-    return typeOf(a) == mk<INT_TY>(a->getFactory());
+    Expr aType = typeOf(a);
+    return aType == mk<INT_TY>(a->getFactory()) || aType == mk<REAL_TY>(a->getFactory());
   }
 
   inline static void getMultOps (Expr a, ExprVector &ops)
@@ -376,13 +377,15 @@ namespace ufo
    * Commutativity in Addition
    */
   inline static Expr exprSorted(Expr e){
+    outs() << "beginning of exprSorted: " << e << "\n";
     Expr res = e;
     if (isOpX<PLUS>(e)) {
-      ExprSet expClauses;
+      ExprVector expClauses;
       for (auto it = e->args_begin(), end = e->args_end(); it != end; ++it){
-        expClauses.insert(*it);
+        expClauses.push_back(*it);
       }
-      res = mknary<PLUS>(expClauses);
+      // res = mknary<PLUS>(expClauses);
+      res = mkplus(expClauses, e->efac());
     }
 
     if (isOpX<MULT>(e)) {
@@ -390,14 +393,16 @@ namespace ufo
         Expr l = e->right();
 
         if (isOpX<PLUS>(l)) {
-          ExprSet expClauses;
+          ExprVector expClauses;
           for (auto it = l->args_begin(), end = l->args_end(); it != end; ++it){
-            expClauses.insert(additiveInverse(*it));
+            expClauses.push_back(additiveInverse(*it));
           }
-          res = mknary<PLUS>(expClauses);
+          // res = mknary<PLUS>(expClauses);
+          res = mkplus(expClauses, e->efac());
         }
       }
     }
+    outs() << "end of exprSorted: " << res << endl;
 
     return res;
   }
@@ -1065,15 +1070,15 @@ namespace ufo
         return simplifyIte(exp);
       }
 
-      if (isOpX<OR>(exp))
-      {
-        return simplifyArithmDisjunctions(exp, keepRedundandDisj && (e == exp));
-      }
+      // if (isOpX<OR>(exp))
+      // {
+      //   return simplifyArithmDisjunctions(exp, keepRedundandDisj && (e == exp));
+      // }
 
-      if (isOpX<AND>(exp))
-      {
-        return simplifyArithmConjunctions(exp, keepRedundandConj && (e == exp));
-      }
+      // if (isOpX<AND>(exp))
+      // {
+      //   return simplifyArithmConjunctions(exp, keepRedundandConj && (e == exp));
+      // }
       return exp;
     }
   };
@@ -1743,9 +1748,11 @@ namespace ufo
 
     // search for a var, const*var or whatever exists in any conjunct
     for (auto & d : cnjs) {
+      outs() << "simpAritConj inloop d: " << d << endl;
       if (!isOp<ComparissonOp>(d) ||
           !isNumeric(d->arg(0))) {
         newCnjs.insert(d);
+        outs() << "continue" << endl;
         continue;
       }
 
@@ -1760,15 +1767,15 @@ namespace ufo
       newCnjs.insert(tmp);
       lin_coms.insert(tmp->arg(0));
     }
-
+    outs() << "I'm done" << endl;
     if (lin_coms.size() == 0)
     {
       if (!keep_redundand) ineqMerger(cnjs, true);
       return conjoin(cnjs, efac);
     }
-
+    outs() << "done twice" << endl;
     for (auto &lin_com : lin_coms) {
-
+      outs() << "lin_com: " << lin_com << endl; 
       cpp_int cur_max_gt;
       cpp_int cur_max_ge;
       cpp_int cur_min_lt;
@@ -1969,8 +1976,9 @@ namespace ufo
           newCnjs.insert(mk<GT>(lin_com, mkMPZ (cur_max_gt, efac)));
         }
       }
+      
     }
-
+    outs() << "After long loop, conj(newCnjs)" << conjoin(newCnjs, efac) << endl;
     if (!keep_redundand) ineqMerger(newCnjs, true);
     return conjoin(newCnjs, efac);
   }
