@@ -1748,11 +1748,11 @@ namespace ufo
 
     // search for a var, const*var or whatever exists in any conjunct
     for (auto & d : cnjs) {
-      outs() << "simpAritConj inloop d: " << d << endl;
+      // outs() << "simpAritConj inloop d: " << d << endl; //outTest
       if (!isOp<ComparissonOp>(d) ||
           !isNumeric(d->arg(0))) {
         newCnjs.insert(d);
-        outs() << "continue" << endl;
+        // outs() << "continue" << endl; //outTest
         continue;
       }
 
