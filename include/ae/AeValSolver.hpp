@@ -191,11 +191,12 @@ namespace ufo
         ExprSet tmp;
         // outs() << "Before calling getLiterals(ex, tmp)" << *ex << endl; //outTest
         getLiterals(ex, tmp);
+
         for (auto it = tmp.begin(); it != tmp.end(); ){
-          if (isOpX<TRUE>(m.eval((Expr)*it))) ++it;
+          if (isOpX<TRUE>(m.eval(*it))) ++it;
           else it = tmp.erase(it);
         }
-        // outs() << "After calling getLiterals(ex, tmp)" << conjoin(tmp, efac) << endl; //outTest
+//        outs() << "After calling getLiterals(ex, tmp): " << conjoin(tmp, efac) << endl; //outTest
         return conjoin(tmp, efac);
       }
       else
@@ -203,42 +204,45 @@ namespace ufo
         // eliminate ITEs first
         for (auto it = ites.begin(); it != ites.end();)
         {
-          if (isOpX<TRUE>((Expr)(*it)->left()))
+          if (isOpX<TRUE>(m((*it)->left())))
           {
             ex = replaceAll(ex, *it, (*it)->right());
             ex = mk<AND>(ex, (*it)->left());
           }
-          else
+          else if (isOpX<FALSE>(m((*it)->left())))
           {
             ex = replaceAll(ex, *it, (*it)->last());
             ex = mk<AND>(ex, mkNeg((*it)->left()));
           }
+          else
+          {
+            ex = replaceAll(ex, *it, (*it)->right()); // TODO
+            ex = mk<AND>(ex, mk<EQ>((*it)->right(), (*it)->last()));
+          }
           it = ites.erase(it);
         }
-        return getTrueLiterals(simplifyBool(simplifyArithm(ex)), m);
+        return getTrueLiterals(ex, m);
       }
     }
-
-    // Expr mixQEMethod(ZSolver<EZ3>::Model &m, Expr constVar, Expr t)
-    // {
-    //   Expr temp = getTrueLiterals(t, m);
-    //   outs() << "After getTrueLiterals(): " << *temp << endl;
-    //   temp = mixQE(temp, constVar);
-    //   Expr tempSim = simplifyArithm(temp);
-    //   outs() << "tempSim: " << tempSim << endl;
-    //   return tempSim;
-    // }
 
     void lastSanityCheck()
     {
       ExprVector args;
       for (auto temp : v) args.push_back(temp->last());
-      args.push_back(mk<OR>(mkNeg(s), t));
+      args.push_back(mk<IMPL>(s, t));
       Expr sImpT =  mknary<EXISTS>(args);
-      Expr disjProj = disjoin(projections, efac);
-      // outs() << "\nDisjunctions of projections: " << *disjProj << "\nexists v. s => t: " << sImpT << endl; //outTest
+      Expr disjProj = mk<IMPL>(s, disjoin(projections, efac));
+//      outs() << "\nDisjunctions of projections: " << *disjProj << "\n";
+//      outs() << "exists v. s => t: " << sImpT << endl; //outTest
+//      u.print(disjProj);
+//      outs () << "\n\n";
+//      u.print(sImpT);
+//      outs () << "\n\n";
       SMTUtils u1(t->getFactory());
-      outs() << "'exists v. s => t' isEquiv to 'disjunctions of projections': " << u1.isEquiv(disjProj, sImpT) << "\n\n";
+      outs() << "'exists v. s => t' isEquiv to 'disjunctions of projections': ";
+      outs () << u1.implies(disjProj, sImpT); // << "\n";
+//      outs () << u1.getModel() << "\n";
+      outs () << u1.implies(sImpT, disjProj) << "\n";
     }
 
     /**
@@ -254,8 +258,9 @@ namespace ufo
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
-        // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
+//         outs() << "after mixQEMethod pr: " << pr << endl; //outTest
 
+        if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
 
@@ -264,11 +269,17 @@ namespace ufo
       someEvals.push_back(modelMap);
       skolMaps.push_back(substsMap);
       projections.push_back(pr);
-      outs() << "current MBP: " << pr << "\n";  //outTEst
-      outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n"; //outTest
+//      outs() << "current MBP: " << pr << "\n";  //outTEst
+//      outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n"; //outTest
       if (true)
       {
         SMTUtils u1(t->getFactory());
+        outs () << "Sanity MBP (1): " << isOpX<TRUE>(m.eval(pr)) << "\n";
+        ExprVector args;
+        for (auto temp : v) args.push_back(temp->last());
+        args.push_back(t);
+        outs () << "Sanity MBP (2): " << (bool)u1.implies(pr, mknary<EXISTS>(args)) << "\n";
+
         outs() << "Checking implications: \n";
         outs() << "cur MBP => z3_qe_model_project_skolem: " << u1.implies(pr, tempPr) << endl;
         outs() << "z3_qe_model_project_skolem => cur MBP: " << u1.implies(tempPr, pr) << endl;
@@ -1800,12 +1811,12 @@ namespace ufo
   Expr mixQE(Expr s, Expr constVar, ExprMap &substsMap, ZSolver<EZ3>::Model &m)
   {
     Expr orig = createQuantifiedFormulaRestr(s, constVar); //Prepare for sanity check
-    // outs() << "Expression before mixQE: " << *s << endl;
+//     outs() << "Expression before mixQE: " << *s << endl;
     ExprSet outSet, temp, sameTypeSet;
     if (constVar == NULL) return s; // taking care of the y does not exist situation.
     // identify and store the type of y.
     Expr yType = bind::typeOf(constVar);
-    // outs() << "constVar: " << *constVar << ", type: " << *yType << endl; //outTest
+//     outs() << "constVar: " << *constVar << ", type: " << *yType << endl; //outTest
     // Support for boolean case.
     if (yType == mk<BOOL_TY>(s->efac()))
     {
@@ -1818,7 +1829,14 @@ namespace ufo
       // outs() << "simplifyBool: " << simplifyBool(disjFirstSec) << endl;
       // return simplifyBool(disjFirstSec);
       if (m.eval(constVar) != constVar) substsMap[constVar] = mk<EQ>(constVar, m.eval(constVar));
-      return simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
+      auto tmp = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
+
+      SMTUtils u(s->getFactory());
+      auto orig = createQuantifiedFormulaRestr(s, constVar); //Prepare for sanity check
+//      outs () << "   flas:   " << *orig << "    \n   " <<* tmp<< "\n";
+//      outs () << "   sanity check for booleans: "  << (bool)u.isEquiv(orig, tmp) << "\n";
+
+      return tmp;
     }
     // gather conjuncts that's the same type with y into sameTypeSet.
     getConj(s, temp);
@@ -1837,7 +1855,7 @@ namespace ufo
     }
     // outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl;
 
-    if (sameTypeSet.empty()) return mk<TRUE>(s->efac()); // the constVar does not exist situation has been taken care by line 1585
+    if (sameTypeSet.empty()) return conjoin(outSet, s->efac()); // the constVar does not exist situation has been taken care by line 1585
     // Append map to substsMap
     substsMap[constVar] = conjoin(sameTypeSet, s->getFactory());
     outSet.insert(yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet, constVar) : intQE(sameTypeSet, constVar));
@@ -1855,11 +1873,10 @@ namespace ufo
     // SANITY CHECK
     Expr after = conjoin(outSet, s->getFactory());
     SMTUtils u1(s->getFactory());
-    // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << after << endl; //outTest
-    // outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, after) << endl << endl; //outTest
+     outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << after << endl; //outTest
+     outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, after) << endl << endl; //outTest
     return after;
   }
-
 
   /**
    * Simple wrapper
@@ -1887,7 +1904,6 @@ namespace ufo
     // // std::chrono::duration<double> duration = end-start;
     // // outs() << "Time for final test execution: " << duration.count() << " seconds" << endl;
     // exit(0);
-
 
     ExprSet t_quantified;
     if (t == NULL)
@@ -1926,7 +1942,7 @@ namespace ufo
     t = conjoin(cnjs, t->getFactory());
     t = simplifyBool(t);
 
-    if (debug) // outTest
+    if (debug && false) // outTest
     {
       outs() << "S: " << *s << "\n";
       outs() << "T: \\exists ";

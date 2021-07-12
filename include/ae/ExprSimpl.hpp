@@ -302,6 +302,15 @@ namespace ufo
       return isOpX<AND>(term) ? disjoin(args, term->getFactory()) :
       conjoin (args, term->getFactory());
     }
+    else if (isOpX<IMPL>(term))
+    {
+      return mk<AND>(term->left(), mkNeg(term->right()));
+    }
+    else if (isOpX<IFF>(term))
+    {
+      return mk<OR>(mk<AND>(term->left(), mkNeg(term->right())),
+                    mk<AND>(term->right(), mkNeg(term->left())));
+    }
     else if (isOp<ComparissonOp>(term))
     {
       return reBuildNegCmp(term, term->arg(0), term->arg(1));
@@ -309,18 +318,9 @@ namespace ufo
     return mk<NEG>(term);
   }
 
-  // bool isNumeric(Expr a)
-  // {
-  //   // don't consider ITE-s
-  //   return (isOp<NumericOp>(a) || isOpX<MPZ>(a) || isOpX<MPQ>(a) ||
-  //           bind::isIntConst(a) || bind::isRealConst(a));
-  // }
-
   bool isBoolean(Expr a)
   {
-    if (isOpX<ITE>(a)) return isBoolean(a->last());
-    return (isOpX<AND>(a) || isOpX<OR>(a) || isOpX<IMPL>(a) || isOpX<NEG>(a) || isOpX<IFF>(a) ||
-            isOp<ComparissonOp>(a) || bind::isBoolConst(a));
+    return typeOf(a) == mk<BOOL_TY>(a->getFactory());
   }
 
   /**
@@ -2222,65 +2222,75 @@ namespace ufo
     return disjoin(newDsjs, efac);
   }
   
-  void getLiterals (Expr exp, ExprSet& lits);
-
-  // assumes no ITE (to be extended)
-  struct LitMiner : public std::unary_function<Expr, VisitAction>
+  void getLiterals (Expr exp, ExprSet& lits)
   {
-    ExprSet& lits;
-    LitMiner (ExprSet& _lits): lits(_lits) {};
-
-    VisitAction operator() (Expr exp)
+    ExprFactory& efac = exp->getFactory();
+    if (isOpX<EQ>(exp) && isNumeric(exp->left()) && !containsOp<MOD>(exp))
     {
-      if (isOpX<EQ>(exp) && isNumeric(exp->left()) && !containsOp<MOD>(exp))
-      {
-        getLiterals(mk<GEQ>(exp->left(), exp->right()), lits);
-        getLiterals(mk<LEQ>(exp->left(), exp->right()), lits);
-        return VisitAction::skipKids ();
-      }
-      if (isOpX<NEQ>(exp) && isNumeric(exp->left()) && !containsOp<MOD>(exp))
-      {
-        getLiterals(mk<GT>(exp->left(), exp->right()), lits);
-        getLiterals(mk<LT>(exp->left(), exp->right()), lits);
-        return VisitAction::skipKids ();
-      }
-      if (isOpX<IMPL>(exp))
-      {
-        getLiterals(mkNeg(exp->left()), lits);
-        getLiterals(exp->right(), lits);
-        return VisitAction::skipKids ();
-      }
-      if (isOpX<IFF>(exp))
-      {
-        getLiterals(mkNeg(exp->left()), lits);
-        getLiterals(exp->right(), lits);
-        getLiterals(mkNeg(exp->right()), lits);
-        getLiterals(exp->left(), lits);
-        return VisitAction::skipKids ();
-      }
-      if (bind::typeOf(exp) == mk<BOOL_TY>(exp->getFactory()) &&
-          !containsOp<AND>(exp) && !containsOp<OR>(exp))
-      {
-        if (isOp<ComparissonOp>(exp))
-        {
-          exp = rewriteDivConstraints(exp);
-          exp = rewriteModConstraints(exp);
-          if (isOpX<AND>(exp) || isOpX<OR>(exp))
-            getLiterals(exp, lits);
-          else lits.insert(exp);
-        }
-        else lits.insert(exp);
-        return VisitAction::skipKids ();
-      }
-      return VisitAction::doKids ();
+      getLiterals(mk<GEQ>(exp->left(), exp->right()), lits);
+      getLiterals(mk<LEQ>(exp->left(), exp->right()), lits);
+      return;
     }
-  };
-
-  inline void getLiterals (Expr exp, ExprSet& lits)
-  {
-    LitMiner trm (lits);
-    exp = boolop::nnf(simplifyBool(exp));
-    dagVisit (trm, exp);
+    else if (isOpX<NEQ>(exp) && isNumeric(exp->left()) && !containsOp<MOD>(exp))
+    {
+      getLiterals(mk<GT>(exp->left(), exp->right()), lits);
+      getLiterals(mk<LT>(exp->left(), exp->right()), lits);
+      return;
+    }
+    else if ((isOpX<EQ>(exp) || isOpX<NEQ>(exp)) && isBoolean(exp->left()))
+    {
+      getLiterals(exp->left(), lits);
+      getLiterals(mkNeg(exp->left()), lits);
+      getLiterals(exp->right(), lits);
+      getLiterals(mkNeg(exp->right()), lits);
+      return;
+    }
+    else if (isOpX<NEG>(exp))
+    {
+      if (bind::isBoolConst(exp->left()))
+        lits.insert(exp);
+      else
+        getLiterals(mkNeg(exp->left()), lits);
+      return;
+    }
+    else if (isOpX<IMPL>(exp))
+    {
+      getLiterals(mkNeg(exp->left()), lits);
+      getLiterals(exp->right(), lits);
+      return;
+    }
+    else if (isOpX<IFF>(exp))
+    {
+      getLiterals(mkNeg(exp->left()), lits);
+      getLiterals(exp->right(), lits);
+      getLiterals(mkNeg(exp->right()), lits);
+      getLiterals(exp->left(), lits);
+      return;
+    }
+    else if (bind::typeOf(exp) == mk<BOOL_TY>(efac) &&
+        !containsOp<AND>(exp) && !containsOp<OR>(exp))
+    {
+      if (isOp<ComparissonOp>(exp))
+      {
+        exp = rewriteDivConstraints(exp);
+        exp = rewriteModConstraints(exp);
+        if (isOpX<AND>(exp) || isOpX<OR>(exp))
+          getLiterals(exp, lits);
+        else lits.insert(exp);
+      }
+      else lits.insert(exp);
+      return;
+    }
+    else if (isOpX<AND>(exp) || isOpX<OR>(exp))
+    {
+      for (int i = 0; i < exp->arity(); i++)
+        getLiterals(exp->arg(i), lits);
+      return;
+    }
+    else if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
+      return;
+    outs () << "unable lit: " << *exp << "\n";
+    assert(0);
   }
 }
 
