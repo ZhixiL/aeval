@@ -1828,6 +1828,19 @@ namespace ufo
     for (auto t : temp) {
       if (contains (t, constVar)) {
         int intVSreal = intOrReal(t);
+
+        if (isOpX<NEG>(t) && isOp<ComparissonOp>(t->left()))
+          t = mkNeg(t->left());
+        if (isOp<ComparissonOp>(t))
+        {        
+          t = simplifyArithm(reBuildCmp(t, mk<PLUS>(t->arg(0), additiveInverse(t->arg(1))), mkMPZ (0, s->efac())));
+          t = ineqSimplifier(constVar, t);
+        }
+        else
+        {
+          assert (0);
+        }
+
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
         else if (yType == mk<INT_TY>(s->efac()) && (intVSreal == 1))
