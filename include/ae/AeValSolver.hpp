@@ -196,7 +196,7 @@ namespace ufo
           if (isOpX<TRUE>(m.eval(*it))) ++it;
           else it = tmp.erase(it);
         }
-//        outs() << "After calling getLiterals(ex, tmp): " << conjoin(tmp, efac) << endl; //outTest
+        // outs() << "After calling getLiterals(ex, tmp): " << conjoin(tmp, efac) << endl; //outTest
         return conjoin(tmp, efac);
       }
       else
@@ -232,16 +232,15 @@ namespace ufo
       args.push_back(mk<IMPL>(s, t));
       Expr sImpT =  mknary<EXISTS>(args);
       Expr disjProj = mk<IMPL>(s, disjoin(projections, efac));
-//      outs() << "\nDisjunctions of projections: " << *disjProj << "\n";
-//      outs() << "exists v. s => t: " << sImpT << endl; //outTest
-//      u.print(disjProj);
-//      outs () << "\n\n";
-//      u.print(sImpT);
-//      outs () << "\n\n";
+      // outs() << "\nDisjunctions of projections: " << *disjProj << "\n";
+      // outs() << "exists v. s => t: " << sImpT << endl; //outTest
+      // u.print(disjProj);
+      // outs () << "\n\n";
+      // u.print(sImpT);
+      // outs () << "\n\n";
       SMTUtils u1(t->getFactory());
       outs() << "'exists v. s => t' isEquiv to 'disjunctions of projections': ";
-      outs () << u1.implies(disjProj, sImpT); // << "\n";
-//      outs () << u1.getModel() << "\n";
+      outs () << u1.implies(disjProj, sImpT);
       outs () << u1.implies(sImpT, disjProj) << "\n";
     }
 
@@ -258,7 +257,7 @@ namespace ufo
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
-//         outs() << "after mixQEMethod pr: " << pr << endl; //outTest
+        // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
 
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
@@ -269,8 +268,8 @@ namespace ufo
       someEvals.push_back(modelMap);
       skolMaps.push_back(substsMap);
       projections.push_back(pr);
-//      outs() << "current MBP: " << pr << "\n";  //outTEst
-//      outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n"; //outTest
+      // outs() << "current MBP: " << pr << "\n";  //outTEst
+      // outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n"; //outTest
       if (true)
       {
         SMTUtils u1(t->getFactory());
@@ -1705,7 +1704,6 @@ namespace ufo
   
   Expr intQE(ExprSet sSet, Expr constVar)
   {
-    // outs() << "Current expression contains integer variable." << endl;
     ExprSet outSet, upVec, loVec;
     ExprVector sVec;
     Expr factoryGetter = *(sSet.begin());
@@ -1715,12 +1713,10 @@ namespace ufo
       if (initEx != NULL) sVec.push_back(initEx);
       else outSet.insert(t);
     }
-    
     // Coefficient Transformation, and extract the coefficient.
     sVec = coefTrans(sVec, constVar); 
     Expr coef = *(sVec.end() - 1);
     sVec.pop_back();
-
     // Collecting upper & lower bound
     for (auto ite = sVec.begin(); ite != sVec.end(); ite++) {
       if (isOpX<GT>(*ite)) loVec.insert(*ite);
@@ -1810,41 +1806,28 @@ namespace ufo
   // case for identifying if Mixture is usable
   Expr mixQE(Expr s, Expr constVar, ExprMap &substsMap, ZSolver<EZ3>::Model &m)
   {
-    Expr orig = createQuantifiedFormulaRestr(s, constVar); //Prepare for sanity check
-//     outs() << "Expression before mixQE: " << *s << endl;
+    Expr orig = createQuantifiedFormulaRestr(s, constVar), output; //Prepare for sanity check
     ExprSet outSet, temp, sameTypeSet;
     if (constVar == NULL) return s; // taking care of the y does not exist situation.
-    // identify and store the type of y.
-    Expr yType = bind::typeOf(constVar);
-//     outs() << "constVar: " << *constVar << ", type: " << *yType << endl; //outTest
+    Expr yType = bind::typeOf(constVar); // identify and store the type of y.
+    outs() << "constVar: " << *constVar << ", type: " << *yType << endl; //outTest
     // Support for boolean case.
     if (yType == mk<BOOL_TY>(s->efac()))
     {
-      // Expr firstRep = replaceAll(s, constVar, mk<TRUE>(s->efac()));
-      // outs() << "First replacement: " << firstRep << endl;
-      // Expr secRep = replaceAll(s, constVar, mk<FALSE>(s->efac()));
-      // outs() << "Second replacement: " << secRep << endl;
-      // Expr disjFirstSec = mk<OR>(firstRep, secRep);
-      // outs() << "disjunction of First and Second: " << disjFirstSec << endl;
-      // outs() << "simplifyBool: " << simplifyBool(disjFirstSec) << endl;
-      // return simplifyBool(disjFirstSec);
       if (m.eval(constVar) != constVar) substsMap[constVar] = mk<EQ>(constVar, m.eval(constVar));
-      auto tmp = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
-
-      SMTUtils u(s->getFactory());
-      auto orig = createQuantifiedFormulaRestr(s, constVar); //Prepare for sanity check
-//      outs () << "   flas:   " << *orig << "    \n   " <<* tmp<< "\n";
-//      outs () << "   sanity check for booleans: "  << (bool)u.isEquiv(orig, tmp) << "\n";
-
-      return tmp;
+      output = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
+      if (false) {
+        SMTUtils u1(s->getFactory());
+        outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+        outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+      }
+      return output;
     }
     // gather conjuncts that's the same type with y into sameTypeSet.
     getConj(s, temp);
     for (auto t : temp) {
-      // outs() << "\tin loop, t: " << *t << endl;
       if (contains (t, constVar)) {
         int intVSreal = intOrReal(t);
-        // outs() << "so far so good: " << intVSreal << t << endl;
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
         else if (yType == mk<INT_TY>(s->efac()) && (intVSreal == 1))
@@ -1853,13 +1836,12 @@ namespace ufo
       }
       else outSet.insert(t);
     }
-    // outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl;
-
+    // outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl; // outTest
     if (sameTypeSet.empty()) return conjoin(outSet, s->efac()); // the constVar does not exist situation has been taken care by line 1585
     // Append map to substsMap
     substsMap[constVar] = conjoin(sameTypeSet, s->getFactory());
     outSet.insert(yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet, constVar) : intQE(sameTypeSet, constVar));
-    
+    output = conjoin(outSet, s->getFactory()); //prepare for Sanity Check
     // //tester
     // Expr qeTemp = (yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet) : intQE(sameTypeSet));
     // Expr mixture = conjoin(outSet, s->getFactory());
@@ -1868,14 +1850,13 @@ namespace ufo
     // else outs() << "The int part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
     // outSet.insert(qeTemp);
 
-    // return conjoin(outSet, s->getFactory()); //Original Return
-
     // SANITY CHECK
-    Expr after = conjoin(outSet, s->getFactory());
-    SMTUtils u1(s->getFactory());
-     outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << after << endl; //outTest
-     outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, after) << endl << endl; //outTest
-    return after;
+    if (true) {
+      SMTUtils u1(s->getFactory());
+      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+      outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+    }
+    return output;
   }
 
   /**

@@ -48,13 +48,13 @@ namespace ufo
 
   template<typename Range> static bool emptyIntersect(Expr a, Range& bv){
     ExprVector av;
-    filter (a, bind::IsConst (), inserter(av, av.begin()));
+    filter (a, IsConst (), inserter(av, av.begin()));
     return emptyIntersect(av, bv);
   }
 
   inline static bool emptyIntersect(Expr a, Expr b){
     ExprVector bv;
-    filter (b, bind::IsConst (), inserter(bv, bv.begin()));
+    filter (b, IsConst (), inserter(bv, bv.begin()));
     return emptyIntersect(a, bv);
   }
 
@@ -105,12 +105,68 @@ namespace ufo
     return false;
   }
 
-  /**
+  static void getAddTerm (Expr a, ExprVector &terms);
+  static void getMultOps (Expr a, ExprVector &ops);
+
+   /**
    * Self explanatory
    */
-  inline static Expr additiveInverse(Expr e){
-    if (isOpX<UN_MINUS>(e)){
+  inline static Expr additiveInverse(Expr e)
+  {
+    if (isOpX<MULT>(e))
+    {
+      cpp_int coef = 1;
+      ExprVector ops;
+      getMultOps (e, ops);
+
+      ExprVector rem;
+      for (auto & a : ops)
+      {
+        if (isOpX<MPZ>(a))
+        {
+          coef *= lexical_cast<cpp_int>(a);
+        }
+        else
+        {
+          rem.push_back(a);
+        }
+      }
+
+      Expr num = mkMPZ (-coef, e->getFactory());
+      if (rem.empty() || coef == 0) return num;
+
+      Expr remTerm = mkmult(rem, e->getFactory());
+      if (coef == -1) return remTerm;
+
+      return mk<MULT>(num, remTerm);
+    }
+    else if (isOpX<PLUS>(e))
+    {
+      ExprVector terms;
+      for (auto it = e->args_begin (), end = e->args_end (); it != end; ++it)
+      {
+        getAddTerm(additiveInverse(*it), terms);
+      }
+      return mkplus(terms, e->getFactory());
+    }
+    else if (isOpX<MINUS>(e))
+    {
+      ExprVector terms;
+      getAddTerm(additiveInverse(*e->args_begin ()), terms);
+      auto it = e->args_begin () + 1;
+      for (auto end = e->args_end (); it != end; ++it)
+      {
+        getAddTerm(*it, terms);
+      }
+      return mkplus(terms, e->getFactory());
+    }
+    else if (isOpX<UN_MINUS>(e))
+    {
       return e->left();
+    }
+    else if (isOpX<MPZ>(e))
+    {
+      return mkMPZ(-lexical_cast<cpp_int>(e), e->getFactory());
     }
     else if (isOpX<MPQ>(e)){
       string val = lexical_cast<string>(e);
@@ -124,18 +180,10 @@ namespace ufo
         return mkTerm (mpq_class (inv_val), e->getFactory());
       }
     }
-    else if (isOpX<MPZ>(e)){
-      int val = lexical_cast<int>(e);
-      return mkTerm (mpz_class (-val), e->getFactory());
+    else if (isOpX<ITE>(e)){
+      return mk<ITE>(e->left(), additiveInverse(e->right()), additiveInverse(e->last()));
     }
-    else if (isOpX<MULT>(e)){
-      if (lexical_cast<string>(e->left()) == "-1"){
-        return e->right();
-      } else if (e->arity() == 2) {
-        Expr c = additiveInverse(e->left());
-        return mk<MULT>(c, e->right());
-      }
-    }
+//    return mk<MULT>(mkMPZ ((-1), e->getFactory()), e);
     return mk<UN_MINUS>(e);
   }
 
@@ -1736,6 +1784,123 @@ namespace ufo
     fla = disjoin(dsjs, fla->getFactory());
     return fla;
   }
+
+  // rewrite just equalities
+  template<typename Range> static Expr simpleQE(Expr exp, Range& quantified)
+  {
+    ExprFactory& efac = exp->getFactory();
+    ExprSet cnjsSet;
+    getConj(exp, cnjsSet);
+    ExprVector cnjs;
+    cnjs.insert(cnjs.end(), cnjsSet.begin(), cnjsSet.end());
+    for (auto & var : quantified)
+    {
+      ExprSet eqs;
+      Expr store; // todo: extend to ExprSet
+
+      for (unsigned it = 0; it < cnjs.size(); )
+      {
+        Expr cnj = cnjs[it];
+        if (!isOpX<EQ>(cnj) || !contains(cnj, var))
+          { it++; continue;}
+
+        Expr normalized = cnj;
+        if (isNumeric(var) && isNumeric(cnj->left()))
+        {
+          normalized = simplifyArithm(
+            mk<EQ>(mk<PLUS>(cnj->arg(0), additiveInverse(cnj->arg(1))),
+              mkMPZ (0, efac)));
+          normalized = ineqSimplifier(var, normalized);
+        }
+        else if (var == normalized->right())
+        {
+          normalized = mk<EQ>(normalized->right(), normalized->left());
+        }
+
+        // after the normalization, var can be eliminated
+        if (!isOpX<EQ>(normalized) || !contains(normalized, var))
+          { it++; continue;}
+
+        if (!contains (normalized->right(), var))
+        {
+          if (var == normalized->left())
+          {
+            eqs.insert(normalized->right());
+            cnjs.erase (cnjs.begin()+it);
+            continue;
+          }
+          else if (isOpX<MULT>(normalized->left()) && isOpX<MPZ>(normalized->left()->left()))
+          {
+            cnjs.push_back(mk<EQ>(mk<MOD>(normalized->right(), normalized->left()->left()),
+                               mkMPZ (0, efac)));
+          }
+        }
+
+        if (store == NULL && containsOp<STORE>(normalized) && isOpX<EQ>(normalized) &&
+            emptyIntersect(normalized->left(), quantified) &&
+            isOpX<STORE>(normalized->right()) && var == normalized->right()->left()) {
+          // one level of storing (to be extended)
+          store = normalized;
+        }
+
+//        errs() << "WARNING: COULD NOT NORMALIZE w.r.t. " << *var << ": "
+//               << *normalized << "     [[  " << *cnj << "  ]]\n";
+
+        cnjs[it] = normalized;
+        it++;
+      }
+
+      if (store != NULL) {
+        // assume "store" = (A = store(var, x, y))
+        for (unsigned it = 0; it < cnjs.size(); it++) {
+          ExprVector se;
+          filter (cnjs[it], IsSelect (), inserter(se, se.begin()));
+          for (auto s : se) {
+            if (contains(store, s)) continue;
+            if (s->left() == var) {
+              Expr cmp = simplifyCmp(mk<EQ>(store->right()->right(), s->right()));
+              cnjs[it] = replaceAll(cnjs[it], s, simplifyIte(
+                         mk<ITE>(cmp,
+                                 store->right()->last(),
+                                 mk<SELECT>(store->left(), s->right()))));
+            }
+          }
+        }
+      }
+
+      if (eqs.empty()) continue;
+
+      Expr repl = *eqs.begin();
+      bool no_qv = emptyIntersect(repl, quantified);
+      int min_sz = treeSize(repl);
+      int is_const = isOpX<MPZ>(repl);
+
+      // first, search for a non-constant replacement without quantified vars, if possible
+      for (auto cnj = std::next(eqs.begin()); cnj != eqs.end(); cnj++) {
+        bool no_qv_cur = emptyIntersect(*cnj, quantified);
+        int sz_cur = treeSize(*cnj);
+        int is_const_cur = isOpX<MPZ>(*cnj);
+        if (no_qv < no_qv_cur || (no_qv_cur && is_const) || (sz_cur < min_sz && !is_const_cur)) {
+          repl = *cnj;
+          min_sz = sz_cur;
+          no_qv = no_qv_cur;
+          is_const = is_const_cur;
+        }
+      }
+
+      // second, make sure that all replacements are equal
+      for (auto cnj = eqs.begin(); cnj != eqs.end(); cnj++)
+        if (*cnj != repl) cnjs.push_back(mk<EQ>(repl, *cnj));
+
+      // finally, replace the remaining cnjs
+      for (unsigned it = 0; it < cnjs.size(); it++)
+        cnjs[it] = replaceAll(cnjs[it], var, repl);
+
+    }
+
+    return (conjoin(cnjs, exp->getFactory()));
+  }
+
 
   // similar to simplifyArithmDisjunctions
   inline static Expr simplifyArithmConjunctions(Expr fla, bool keep_redundand = false)
