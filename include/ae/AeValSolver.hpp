@@ -258,7 +258,6 @@ namespace ufo
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
         // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
-
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
@@ -1537,7 +1536,7 @@ namespace ufo
     }
   }
   // Ensuring lhs doesn't have a negative coefficient.
-    Expr negativeCoefCheck(Expr t)
+  Expr negativeCoefCheck(Expr t)
   {
     if (isOp<ComparissonOp>(t))
     {
@@ -1627,8 +1626,29 @@ namespace ufo
     } else return t;
   }
 
+  bool checkNegCoef(Expr lhs)
+  {
+    if (isOpX<MPZ>(lhs->left()) && (boost::lexical_cast<int>(lhs->left()) < 0)) return true;
+    if (isOpX<MPZ>(lhs->right()) && (boost::lexical_cast<int>(lhs->right()) < 0)) return true;
+    return false;
+  }
+
+  //converting the negative coefficient into a positive coefficient that's being added an UN_MINUS.
+  Expr convertNegCoef(Expr t)
+  {
+    Expr coef = NULL, remain = NULL, lhs = t->left(), rhs = t->right();
+    if (isOpX<MPZ>(lhs->left())) coef = lhs->left(), remain = lhs->right();
+    else if (isOpX<MPZ>(lhs->right())) coef = lhs->right(), remain = lhs->left();
+    if (coef != NULL) {
+      coef = mk<UN_MINUS>(mkTerm(mpz_class(boost::lexical_cast<int>(coef) * -1), t->getFactory()));
+      t = mk(t->op(), mk<MULT>(coef, remain), rhs);
+    } else outs() << "convertNegCoef: Unable to locate lhs coefficient.\n";
+    return t;
+  }
+
   Expr vecElemInitInt(Expr t, Expr constVar)
   {
+    outs() << "before vecElemInit" << t << endl;
     if (isOp<ComparissonOp>(t))
     {
       //EQ or NEQ expression are not currently supported.
@@ -1643,6 +1663,9 @@ namespace ufo
           t = negativeCoefCheck(t);
           if (t == NULL) return NULL;
           lhs = t->left(), rhs = t->right();
+        } else if (isOpX<MULT>(lhs) && checkNegCoef(lhs)) {
+          t = negativeCoefCheck(convertNegCoef(t));
+          lhs = t->left(), rhs = t->right();
         }
       }
       //applying (3), getting rid of LT and GEQ
@@ -1650,9 +1673,8 @@ namespace ufo
       if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
       else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
       //Single conjunct Mult & Div transformation.
-      // outs() << "\nVecElemInitInt before t: " << *t << endl;
       if (isOp<MULT>(lhs) || isOp<DIV>(lhs)) t = divMultTransInt(t, constVar);
-      // outs() << "VecElemInitInt after t: " << *t << endl << endl;
+      outs() << "VecElemInitInt after t: " << *t << endl << endl;
       return t;
     } else {
       outs() << "The input Expr " << *t << " is not comparison!" << endl;
@@ -1675,12 +1697,12 @@ namespace ufo
 
   ExprVector coefTrans(ExprVector sVec, Expr constVar)
   {
-    // sVec = divTransIntVec(sVec);
     ExprVector outVec;
     int LCM = 1;
     vector<int> intVec;
     // Gather LCM
     for (auto ite = sVec.begin(); ite != sVec.end(); ite++) {
+      outs() << "\tite: " << *ite << endl;
       Expr lhs = (*ite)->left();
       if (isOp<MULT>(lhs)) {
         if (isOpX<MPZ>(lhs->left())) intVec.push_back(boost::lexical_cast<int>(*lhs->left()));
@@ -1771,7 +1793,6 @@ namespace ufo
 
   Expr realQE(ExprSet sSet, Expr constVar)
   {
-    // outs() << "Current expression contains real variable." << endl;
     ExprSet outSet, upVec, loVec;
     ExprVector sVec;
     Expr factoryGetter = *(sSet.begin());
@@ -1855,13 +1876,6 @@ namespace ufo
     substsMap[constVar] = conjoin(sameTypeSet, s->getFactory());
     outSet.insert(yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet, constVar) : intQE(sameTypeSet, constVar));
     output = conjoin(outSet, s->getFactory()); //prepare for Sanity Check
-    // //tester
-    // Expr qeTemp = (yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet) : intQE(sameTypeSet));
-    // Expr mixture = conjoin(outSet, s->getFactory());
-    // outs() << "\nDisplay real part and mixed part: " << endl;
-    // if (yType == mk<REAL_TY>(s->efac())) outs() << "The real part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
-    // else outs() << "The int part: " << *qeTemp << "\nMix part: " << *mixture << endl << endl;
-    // outSet.insert(qeTemp);
 
     // SANITY CHECK
     if (true) {
