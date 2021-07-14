@@ -473,43 +473,64 @@ namespace ufo
   template <typename T> static Expr rewriteHelperM(Expr e, Expr var){
     Expr l = e->left();
     Expr r = e->right();
-    Expr lhs;     // expression, containing var; assume, var contains only in one clause
-    ExprSet rhs;  // the rest of e
+    ExprVector orig_lhs, orig_rhs, lhs, rhs;
 
-    ExprVector terms;
-    getPlusTerms(l, terms);
-    for (auto & a : terms)
+    // parse
+
+    getAddTerm(l, orig_lhs);
+    getAddTerm(r, orig_rhs);
+    for (auto & a : orig_lhs)
     {
-      if (contains(a, var))
-      {
-        lhs = a;
-        continue;
-      }
-      rhs.insert(additiveInverse(a));
+      if (contains (a, var)) lhs.push_back(a);
+      else rhs.push_back(additiveInverse(a));
+    }
+    for (auto & a : orig_rhs)
+    {
+      if (contains (a, var)) lhs.push_back(additiveInverse(a));
+      else rhs.push_back(a);
     }
 
-    terms.clear();
-    getPlusTerms(r, terms);
-    for (auto & a : terms)
+    // combine results
+
+    cpp_int coef = 0;
+    for (auto it = lhs.begin(); it != lhs.end(); )
     {
-      if (contains(a, var))
-      {
-        assert(lhs == NULL);
-        lhs = additiveInverse(a);
-        continue;
+      bool found = false;
+      if (*it == var) { coef++; found = true; }
+      if (isOpX<UN_MINUS>(*it) && (*it)->left() == var) { coef--; found = true; }
+      if (isOpX<MULT>(*it) && 2 == (*it)->arity() && isOpX<MPZ>((*it)->left()) && (*it)->right() == var) {
+        coef += lexical_cast<cpp_int>((*it)->left());
+        found = true;
       }
-      rhs.insert(a);
+
+      if (found) { it = lhs.erase(it); continue; }
+      else ++it;
     }
 
-    if (lhs != 0) return mk<T>(lhs, mkplus(rhs, e->getFactory()));
-    return e;
+    if (!lhs.empty())
+    {
+//      errs() << "WARNING: COULD NOT NORMALIZE w.r.t. " << *var << ": "
+//             << *conjoin (lhs, e->getFactory()) << "\n";
+      return e;
+    }
+
+    r = mkplus(rhs, e->getFactory());
+
+    if (coef == 0){
+      l = mkMPZ (0, e->getFactory());
+    } else if (coef == 1){
+      l = var;
+    } else {
+      l = mk<MULT>(mkMPZ(coef, e->getFactory()), var);
+    }
+
+    return mk<T>(l,r);
   }
 
   /**
    * Helper used in exprMover
    */
   template <typename T> static Expr rewriteHelperE(Expr e, Expr var){
-    //todo: debug: clean = false -> shared_ptr.hpp:418: Assertion `px != 0' failed
     assert(e->arity() == 2);
     Expr l = e->left();
     Expr r = e->right();
@@ -532,25 +553,28 @@ namespace ufo
    *  (a <= b && a >= b) -> (a == b)
    */
   inline static void ineqMerger(ExprSet& expClauses, bool clean = false){
-    for (auto &e: expClauses){
-      if (isOpX<LEQ>(e)){
-        for (auto &e2: expClauses){
-          if (isOpX<GEQ>(e2)){
-            if (e->left() == e2->left()){
-              Expr e1r = exprSorted(e->right());
-              Expr e2r = exprSorted(e2->right());
-              if ( e1r == e2r ){
-                if (clean){
-                  expClauses.erase(e);
-                  expClauses.erase(e2);
-                }
-                expClauses.insert(mk<EQ>(e->left(), e1r));
+    vector<ExprSet::iterator> tmp;
+    ExprSet newClauses;
+    for (auto it1 = expClauses.begin(); it1 != expClauses.end(); ++it1){
+      if (isOpX<LEQ>(*it1)){
+        for (auto it2 = expClauses.begin(); it2 != expClauses.end(); ++it2){
+          if (isOpX<GEQ>(*it2)){
+            Expr e1l = exprSorted(mk<MINUS>((*it1)->left(), (*it1)->right()));
+            Expr e2l = exprSorted(mk<MINUS>((*it2)->left(), (*it2)->right()));
+            if ( e1l == e2l ){
+              newClauses.insert(mk<EQ>(e1l, mkMPZ(0, e1l->getFactory())));
+              if (clean){
+                tmp.push_back (it1);
+                tmp.push_back (it2);
+                break;
               }
             }
           }
         }
       }
     }
+    for (auto & it : tmp) expClauses.erase(it);
+    expClauses.insert(newClauses.begin(), newClauses.end());
   }
 
   /**
@@ -739,8 +763,8 @@ namespace ufo
     }
     else if (isOp<ComparissonOp>(exp))
     {
-      exp = ineqMover(exp, v);
       exp = simplifyArithm(exp, false, false);
+      exp = ineqMover(exp, v);
       exp = ineqReverter(exp);
     }
     return exp;
@@ -921,12 +945,14 @@ namespace ufo
     return c;
   }
 
-  inline static Expr simplifyPlus (Expr exp){
+  inline static Expr simplifyPlus (Expr exp)
+  {
     ExprVector plsOps;
-    getPlusTerms (exp, plsOps);
-    // GF: to extend
-    int c = separateConst(plsOps);
-    if (c != 0) plsOps.push_back(mkTerm (mpz_class (c), exp->getFactory()));
+    getAddTerm (exp, plsOps);
+    cpp_int c = separateConst(plsOps);
+    std::sort(plsOps.begin(), plsOps.end(), [](Expr& x, Expr& y) {return x < y;});
+    // GF: to write some kind of a fold-operator that counts the numbers of occurences
+    if (c != 0) plsOps.push_back(mkMPZ(c, exp->getFactory()));
     return mkplus(plsOps, exp->getFactory());
   }
 
