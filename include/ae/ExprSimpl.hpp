@@ -1055,10 +1055,7 @@ namespace ufo
       else ++it1;
     }
 
-    if (c1 > c2)
-      plusOpsLeft.push_back(mkTerm (mpz_class (c1 - c2), efac));
-    else if (c1 < c2)
-      plusOpsRight.push_back(mkTerm (mpz_class (c2 - c1), efac));
+    plusOpsRight.push_back(mkTerm (mpz_class (c2 - c1), efac));
 
     return reBuildCmp(exp, mkplus(plusOpsLeft, efac), mkplus(plusOpsRight, efac));
   }
