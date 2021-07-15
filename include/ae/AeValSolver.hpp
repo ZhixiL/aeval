@@ -246,7 +246,7 @@ namespace ufo
       SMTUtils u1(t->getFactory());
       outs() << "'exists v. s => t' isEquiv to 'disjunctions of projections': ";
       outs () << u1.implies(disjProj, sImpT);
-      outs () << u1.implies(sImpT, disjProj) << "\n";
+      outs () << u1.implies(sImpT, disjProj) << "\n\n\n\n";
     }
 
     /**
@@ -700,6 +700,7 @@ namespace ufo
      */
     Expr getAssignmentForVar(Expr var, Expr exp)
     {
+      exp = oldNormalizationGen(exp, var);
       if (!isNumeric(var))
       {
         if (isOpX<EQ>(exp))
@@ -711,7 +712,7 @@ namespace ufo
         assert(0);
       }
 
-     if (true) outs () << "getAssignmentForVar " << *var << " in:\n" << *exp << "\n";
+     if (true) outs () << "getAssignmentForVar " << *var << " in:  " << *exp << "\n";
 
       bool isInt = bind::isIntConst(var);
 
@@ -808,17 +809,14 @@ namespace ufo
       return exp;
     }
 
-    ExprSet oldNormalizationGen(ExprSet cnjs)
+    Expr oldNormalizationGen(Expr s, Expr constY)
     {
       // Starting here
-      Expr s = conjoin(cnjs, efac);
       outs() << "Printing original SMT formula:\n" << *s << endl << endl;
       s = simplifyBool(s);
       ExprSet E, D, G, LE, temp; //Use Expr vector instead
       getConj(s, temp);
       Expr constOne = mkTerm(mpz_class(1), s->getFactory());
-      Expr constYTemp = mkTerm <std::string> ("y", s->getFactory());
-      Expr constY = bind::intConst(constYTemp);
 
       ExprVector sVec;
       //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ.
@@ -918,14 +916,13 @@ namespace ufo
       for(auto t : LE) final.insert(t);
       SMTUtils u1(s->getFactory());
       outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
-      cnjs = final;
-      return cnjs;
+      return conjoin(final, s->getFactory());
     }
 
     Expr compositeAssm(ExprSet& cnjs, Expr var, bool isInt)
     {
-      outs() << "Var: " << var << endl;
-      outs() << "cnjs: " << conjoin(cnjs, efac) << endl;
+//      outs() << "Var: " << var << endl;
+//      outs() << "cnjs: " << conjoin(cnjs, efac) << endl;
         bool incomplete = false;
 
         // split constraints
@@ -938,8 +935,6 @@ namespace ufo
         ExprSet conjEQ;
 
         u.removeRedundantConjuncts(cnjs);
-
-        // cnjs = oldNormalizationGen(cnjs);
 
         for (auto cnj : cnjs)
         {
@@ -1470,6 +1465,7 @@ namespace ufo
         {
           assert(skolMaps[i][a] != NULL);
           t.push_back(skolMaps[i][a]); // should be on i-th position
+          outs () << " skolMaps [ " << i << ", " << *a << " ] = " << skolMaps[i][a] << "\n";
         }
         skolemConstraints[a] = t;
       }
@@ -1478,6 +1474,7 @@ namespace ufo
       ExprMap sameAssms;
       for (auto & var : eligibleVars)
       {
+        outs () << "  eligibleVar " << var << ":\n";
         bool same = true;
         auto & a = skolemConstraints[var];
         for (int i = 1; i < partitioning_size; i++)
@@ -1490,7 +1487,6 @@ namespace ufo
         }
         if (same)
         {
-          outs() << "getAssignmentForVar called \n";
           sameAssms[var] = getAssignmentForVar(var, a[0]);
           Expr skol = mk<EQ>(var, sameAssms[var]);
           skolUncond.insert(skol);
@@ -1555,10 +1551,11 @@ namespace ufo
         ExprMap allAssms = sameAssms;
         for (auto & a : sensitiveVars)
         {
+          outs () << "sensitive var: " << *a << "\n";
           ExprSet cnjs;
           for (int b : intersect) getConj(skolemConstraints[a][b], cnjs);
-          outs() << "getAssignmentForVar 2 called\n";
           Expr def = getAssignmentForVar(a, conjoin(cnjs, efac));
+          outs () << "  - - -> " << *def << "\n";
           allAssms[a] = def;
         }
         Expr bigSkol = combineAssignments(allAssms, someEvals[*intersect.begin()]);
@@ -1566,7 +1563,6 @@ namespace ufo
 
         for (auto & evar : v)
         {
-          Expr newSkol;
           for (int i = 0; i < partitioning_size; i++)
           {
             int curSz = treeSize(projections[i]);
@@ -1575,15 +1571,15 @@ namespace ufo
 
         for (int i = 0; i < partitioning_size; i++)
         {
-          outs() << "i: " << i << endl; 
+          outs() << " partition " << i << ": " << projections[i] << endl;
           allAssms = sameAssms;
           if (find(intersect.begin(), intersect.end(), i) == intersect.end())
           {
             for (auto & a : sensitiveVars)
             {
               outs() << "a: " << a << endl;
-              outs() << "getAssignmentForVar 3 called\n";
               Expr def = getAssignmentForVar(a, skolemConstraints[a][i]);
+              outs () << "  - - -> " << *def << "\n";
               allAssms[a] = def;
             }
             bigSkol = mk<ITE>(projections[i], combineAssignments(allAssms, someEvals[i]), bigSkol);
