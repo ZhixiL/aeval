@@ -711,7 +711,7 @@ namespace ufo
         assert(0);
       }
 
-//      if (debug) outs () << "getAssignmentForVar " << *var << " in:\n" << *exp << "\n";
+     if (true) outs () << "getAssignmentForVar " << *var << " in:\n" << *exp << "\n";
 
       bool isInt = bind::isIntConst(var);
 
@@ -808,6 +808,120 @@ namespace ufo
       return exp;
     }
 
+    ExprSet oldNormalizationGen(ExprSet cnjs)
+    {
+      // Starting here
+      Expr s = conjoin(cnjs, efac);
+      outs() << "Printing original SMT formula:\n" << *s << endl << endl;
+      s = simplifyBool(s);
+      ExprSet E, D, G, LE, temp; //Use Expr vector instead
+      getConj(s, temp);
+      Expr constOne = mkTerm(mpz_class(1), s->getFactory());
+      Expr constYTemp = mkTerm <std::string> ("y", s->getFactory());
+      Expr constY = bind::intConst(constYTemp);
+
+      ExprVector sVec;
+      //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ.
+      for (auto t : temp) sVec.push_back(vecElemInit(t, constY));
+
+      while (true)
+      {
+        ExprVector sVecTemp;
+        auto locIte = sVec.begin();
+        while (locIte != sVec.end())
+        {
+          Expr lhs = (*locIte) -> left(), rhs = (*locIte) -> right(), curExp = (*locIte);
+          if (!contains(curExp, constY)) 
+          {
+            outs() << "ERROR: Y is not on LHS of " << *curExp << "on the start." << endl;
+            exit(0);
+          } else if (curExp->arity() != 2)
+          {
+            outs() << "ERROR: The expression " << *curExp << "is invalid!" << endl;
+          }
+          if (lhs->arity() != 1)
+          {
+            //MULTIPLICATION TRANSFORMATION
+            if (isOp<MULT>(lhs)) sVecTemp.push_back(multTrans(curExp, constY));
+
+            //DIVISION TRANSFORMATION
+            else if (isOp<DIV>(lhs))
+            {
+              Expr lhs = curExp->left(), rhs = curExp->right();
+              Expr alpha = lhs->right(), varY = lhs->left();
+              if (!contains(varY, constY)) 
+              {
+                outs() << "ERROR on divTrans, f(x)/y format not supported." << endl;
+                exit(0);
+              }
+
+              //applying section 4.2, divisibility constraints
+              if (isOpX<EQ>(curExp)){
+                sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
+                sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+              } else if (isOpX<GT>(curExp)){
+                sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+              } else if (isOpX<LEQ>(curExp)){
+                sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+              } else if (isOpX<NEQ>(curExp)){
+                int i = -1;
+                if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
+                else outs() << "Issue with NEQ expression, no alpha found." << *curExp << endl;
+                while (i >= 0)
+                {
+                  sVecTemp.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
+                    mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
+                    mk<MULT>(alpha, rhs)));
+                  --i;
+                }
+              }
+            } else outs() << "The current operation on LHS : " << *lhs << " is not supported!" << endl;
+            sVec.erase(locIte);
+            break;
+          }
+          else locIte += 1;
+        }
+        // no change detected, break while loop.
+        if (sVecTemp.empty()) break; 
+        // Merging sVecTemp w/ sVec
+        else for (auto ite = sVecTemp.begin(); ite != sVecTemp.end(); ++ite) sVec.push_back(*ite);
+      }
+
+      //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
+      for (auto ite = sVec.begin(); ite != sVec.end(); ){
+        if (isOpX<NEQ>(*ite))  D.insert(*ite);
+        else if (isOpX<EQ>(*ite)) E.insert(*ite);
+        else if (isOpX<GT>(*ite)) G.insert(*ite);
+        else if (isOpX<LEQ>(*ite)) LE.insert(*ite);
+        else if (isOpX<GEQ>(*ite)) outs() << "Error, GEQ detected: " << *ite << endl;
+        else if (isOpX<LT>(*ite)) outs() << "Error, LT detected: " << *ite << endl;
+        else outs() << "Insertion ERROR\n";
+        ite++;
+      }
+
+      //PRINTING SECTION
+      outs() << "Following expressions divided by comparison type:\nE: ";
+      for (auto t : E) outs() <<  *t  << " ";
+      outs() << "\nD: ";
+      for (auto t : D) outs() <<  *t  << " ";
+      outs() << "\nG: ";
+      for (auto t : G) outs() <<  *t  << " ";
+      outs() << "\nLE: ";
+      for (auto t : LE) outs() <<  *t  << " ";
+      outs() << endl;
+      
+      
+      ExprSet final;
+      for(auto t : E) final.insert(t);
+      for(auto t : D) final.insert(t);
+      for(auto t : G) final.insert(t);
+      for(auto t : LE) final.insert(t);
+      SMTUtils u1(s->getFactory());
+      outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
+      cnjs = final;
+      return cnjs;
+    }
+
     Expr compositeAssm(ExprSet& cnjs, Expr var, bool isInt)
     {
       outs() << "Var: " << var << endl;
@@ -824,116 +938,8 @@ namespace ufo
         ExprSet conjEQ;
 
         u.removeRedundantConjuncts(cnjs);
-        
 
-        Expr s = conjoin(cnjs, efac);
-        outs() << "Printing original SMT formula:\n" << *s << endl << endl;
-        s = simplifyBool(s);
-        ExprSet E, D, G, LE, temp; //Use Expr vector instead
-        getConj(s, temp);
-        Expr constOne = mkTerm(mpz_class(1), s->getFactory());
-        Expr constYTemp = mkTerm <std::string> ("y", s->getFactory());
-        Expr constY = bind::intConst(constYTemp);
-
-        ExprVector sVec;
-        //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ.
-        for (auto t : temp) sVec.push_back(vecElemInit(t, constY));
-
-        while (true)
-        {
-          ExprVector sVecTemp;
-          auto locIte = sVec.begin();
-          while (locIte != sVec.end())
-          {
-            Expr lhs = (*locIte) -> left(), rhs = (*locIte) -> right(), curExp = (*locIte);
-            if (!contains(curExp, constY)) 
-            {
-              outs() << "ERROR: Y is not on LHS of " << *curExp << "on the start." << endl;
-              exit(0);
-            } else if (curExp->arity() != 2)
-            {
-              outs() << "ERROR: The expression " << *curExp << "is invalid!" << endl;
-            }
-            if (lhs->arity() != 1)
-            {
-              //MULTIPLICATION TRANSFORMATION
-              if (isOp<MULT>(lhs)) sVecTemp.push_back(multTrans(curExp, constY));
-
-              //DIVISION TRANSFORMATION
-              else if (isOp<DIV>(lhs))
-              {
-                Expr lhs = curExp->left(), rhs = curExp->right();
-                Expr alpha = lhs->right(), varY = lhs->left();
-                if (!contains(varY, constY)) 
-                {
-                  outs() << "ERROR on divTrans, f(x)/y format not supported." << endl;
-                  exit(0);
-                }
-
-                //applying section 4.2, divisibility constraints
-                if (isOpX<EQ>(curExp)){
-                  sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
-                  sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-                } else if (isOpX<GT>(curExp)){
-                  sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-                } else if (isOpX<LEQ>(curExp)){
-                  sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-                } else if (isOpX<NEQ>(curExp)){
-                  int i = -1;
-                  if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
-                  else outs() << "Issue with NEQ expression, no alpha found." << *curExp << endl;
-                  while (i >= 0)
-                  {
-                    sVecTemp.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
-                      mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
-                      mk<MULT>(alpha, rhs)));
-                    --i;
-                  }
-                }
-              } else outs() << "The current operation on LHS : " << *lhs << " is not supported!" << endl;
-              sVec.erase(locIte);
-              break;
-            }
-            else locIte += 1;
-          }
-          // no change detected, break while loop.
-          if (sVecTemp.empty()) break; 
-          // Merging sVecTemp w/ sVec
-          else for (auto ite = sVecTemp.begin(); ite != sVecTemp.end(); ++ite) sVec.push_back(*ite);
-        }
-
-        //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
-        for (auto ite = sVec.begin(); ite != sVec.end(); ){
-          if (isOpX<NEQ>(*ite))  D.insert(*ite);
-          else if (isOpX<EQ>(*ite)) E.insert(*ite);
-          else if (isOpX<GT>(*ite)) G.insert(*ite);
-          else if (isOpX<LEQ>(*ite)) LE.insert(*ite);
-          else if (isOpX<GEQ>(*ite)) outs() << "Error, GEQ detected: " << *ite << endl;
-          else if (isOpX<LT>(*ite)) outs() << "Error, LT detected: " << *ite << endl;
-          else outs() << "Insertion ERROR\n";
-          ite++;
-        }
-
-        //PRINTING SECTION
-        outs() << "Following expressions divided by comparison type:\nE: ";
-        for (auto t : E) outs() <<  *t  << " ";
-        outs() << "\nD: ";
-        for (auto t : D) outs() <<  *t  << " ";
-        outs() << "\nG: ";
-        for (auto t : G) outs() <<  *t  << " ";
-        outs() << "\nLE: ";
-        for (auto t : LE) outs() <<  *t  << " ";
-        outs() << endl;
-        
-        
-        ExprSet final;
-        for(auto t : E) final.insert(t);
-        for(auto t : D) final.insert(t);
-        for(auto t : G) final.insert(t);
-        for(auto t : LE) final.insert(t);
-        SMTUtils u1(s->getFactory());
-        outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
-        cnjs = final;
+        // cnjs = oldNormalizationGen(cnjs);
 
         for (auto cnj : cnjs)
         {
@@ -1101,18 +1107,18 @@ namespace ufo
             else curMin = mk<ITE>(mk<LEQ>(curMinLT, curMinLE), curMinLT, curMinLE);
           }
         }
-        outs() << "curMaxGT: " << curMaxGT << "\n";
-        outs() << "curMaxGE: " << curMaxGE << "\n";
-        outs() << "curMinLT: " << curMinLT << "\n";
-        outs() << "curMinLE: " << curMinLE << "\n";
-        outs() << "curMax: " << curMax << "\n";
-        outs() << "curMin: " << curMin << "\n";
-        outs() << "conjLT: " << conjoin(conjLT, efac) << endl;
-        outs() << "conjLE: " << conjoin(conjLE, efac) << endl;
-        outs() << "conjGT: " << conjoin(conjGT, efac) << endl;
-        outs() << "conjGE: " << conjoin(conjGE, efac) << endl;
-        outs() << "conjNEQ: " << conjoin(conjNEQ, efac) << endl;
-        outs() << "conjEQ: " << conjoin(conjEQ, efac) << endl;
+        // outs() << "curMaxGT: " << curMaxGT << "\n";
+        // outs() << "curMaxGE: " << curMaxGE << "\n";
+        // outs() << "curMinLT: " << curMinLT << "\n";
+        // outs() << "curMinLE: " << curMinLE << "\n";
+        // outs() << "curMax: " << curMax << "\n";
+        // outs() << "curMin: " << curMin << "\n";
+        // outs() << "conjLT: " << conjoin(conjLT, efac) << endl;
+        // outs() << "conjLE: " << conjoin(conjLE, efac) << endl;
+        // outs() << "conjGT: " << conjoin(conjGT, efac) << endl;
+        // outs() << "conjGE: " << conjoin(conjGE, efac) << endl;
+        // outs() << "conjNEQ: " << conjoin(conjNEQ, efac) << endl;
+        // outs() << "conjEQ: " << conjoin(conjEQ, efac) << endl;
 
         if (conjNEQ.size() == 0)
         {
@@ -1484,6 +1490,7 @@ namespace ufo
         }
         if (same)
         {
+          outs() << "getAssignmentForVar called \n";
           sameAssms[var] = getAssignmentForVar(var, a[0]);
           Expr skol = mk<EQ>(var, sameAssms[var]);
           skolUncond.insert(skol);
@@ -1550,10 +1557,12 @@ namespace ufo
         {
           ExprSet cnjs;
           for (int b : intersect) getConj(skolemConstraints[a][b], cnjs);
+          outs() << "getAssignmentForVar 2 called\n";
           Expr def = getAssignmentForVar(a, conjoin(cnjs, efac));
           allAssms[a] = def;
         }
         Expr bigSkol = combineAssignments(allAssms, someEvals[*intersect.begin()]);
+        outs() << "BigSkol: " << bigSkol << endl;
 
         for (auto & evar : v)
         {
@@ -1566,15 +1575,19 @@ namespace ufo
 
         for (int i = 0; i < partitioning_size; i++)
         {
+          outs() << "i: " << i << endl; 
           allAssms = sameAssms;
           if (find(intersect.begin(), intersect.end(), i) == intersect.end())
           {
             for (auto & a : sensitiveVars)
             {
+              outs() << "a: " << a << endl;
+              outs() << "getAssignmentForVar 3 called\n";
               Expr def = getAssignmentForVar(a, skolemConstraints[a][i]);
               allAssms[a] = def;
             }
             bigSkol = mk<ITE>(projections[i], combineAssignments(allAssms, someEvals[i]), bigSkol);
+            outs() << "new BigSkol: " << bigSkol << endl;
             if (compact) bigSkol = u.simplifyITE(bigSkol);
           }
         }
