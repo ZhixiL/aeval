@@ -18,6 +18,8 @@ namespace ufo
   Expr revExpr(Expr s);
   Expr negativeCoefCheck(Expr t);
   Expr vecElemInit(Expr t, Expr constY);
+  bool negCoefNumCheck(Expr lhs);
+  Expr convertNegCoefNum(Expr t);
 
   class AeValSolver {
   private:
@@ -157,8 +159,8 @@ namespace ufo
 
         ZSolver<EZ3>::Model m = smt.getModel();
 
-        // if (debug && false)
-        if (true) //outTest
+        if (debug && false)
+        // if (true) //outTest
         {
           outs() << "\nmodel " << partitioning_size << ":\n";
           for (auto &exp: stVars)
@@ -257,12 +259,14 @@ namespace ufo
       Expr pr = t, tempPr = t;
       ExprMap substsMap;
       ExprMap modelMap;
+      outs() << "Before MBP, pr: " << *pr << endl;
       for (auto & exp : v)
       {
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
+        outs() << "before mixQEMethod pr: " << pr << endl; // outTest
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
-        // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
+        outs() << "after mixQEMethod pr: " << pr << endl; //outTest
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
@@ -272,7 +276,7 @@ namespace ufo
       someEvals.push_back(modelMap);
       skolMaps.push_back(substsMap);
       projections.push_back(pr);
-      // outs() << "current MBP: " << pr << "\n";  //outTEst
+      outs() << "current MBP: " << pr << "\n";  //outTest
       // outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n"; //outTest
       if (true)
       {
@@ -282,7 +286,6 @@ namespace ufo
         for (auto temp : v) args.push_back(temp->last());
         args.push_back(t);
         outs () << "Sanity MBP (2): " << (bool)u1.implies(pr, mknary<EXISTS>(args)) << "\n";
-
         outs() << "Checking implications: \n";
         outs() << "cur MBP => z3_qe_model_project_skolem: " << u1.implies(pr, tempPr) << endl;
         outs() << "z3_qe_model_project_skolem => cur MBP: " << u1.implies(tempPr, pr) << endl;
@@ -700,7 +703,7 @@ namespace ufo
      */
     Expr getAssignmentForVar(Expr var, Expr exp)
     {
-      exp = oldNormalizationGen(exp, var);
+      // if (bind::typeOf(var) == mk<INT_TY>(s->efac())) exp = oldNormalizationGen(exp, var);
       if (!isNumeric(var))
       {
         if (isOpX<EQ>(exp))
@@ -712,7 +715,7 @@ namespace ufo
         assert(0);
       }
 
-     if (true) outs () << "getAssignmentForVar " << *var << " in:  " << *exp << "\n";
+      if (true) outs () << "getAssignmentForVar " << *var << " in:  " << *exp << "\n";
 
       bool isInt = bind::isIntConst(var);
 
@@ -809,29 +812,27 @@ namespace ufo
       return exp;
     }
 
-    Expr oldNormalizationGen(Expr s, Expr constY)
+    Expr oldNormalizationGen(Expr s, Expr var)
     {
-      // Starting here
-      outs() << "Printing original SMT formula:\n" << *s << endl << endl;
+      outs() << "Printing original SMT formula:\n" << *s << endl;
+      // Preparation
       s = simplifyBool(s);
-      ExprSet E, D, G, LE, temp; //Use Expr vector instead
+      ExprSet temp; ExprVector sVec;
       getConj(s, temp);
       Expr constOne = mkTerm(mpz_class(1), s->getFactory());
-
-      ExprVector sVec;
-      //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ.
-      for (auto t : temp) sVec.push_back(vecElemInit(t, constY));
-
+      //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ;
+      for (auto t : temp) sVec.push_back(vecElemInit(t, var));
+      // Normalization
       while (true)
       {
         ExprVector sVecTemp;
-        auto locIte = sVec.begin();
+        auto locIte = sVec.begin(); // location iterator
         while (locIte != sVec.end())
         {
           Expr lhs = (*locIte) -> left(), rhs = (*locIte) -> right(), curExp = (*locIte);
-          if (!contains(curExp, constY)) 
+          if (!contains(curExp, var)) 
           {
-            outs() << "ERROR: Y is not on LHS of " << *curExp << "on the start." << endl;
+            outs() << "ERROR: var " << *var << " is not on LHS of " << *curExp << "on the start." << endl;
             exit(0);
           } else if (curExp->arity() != 2)
           {
@@ -840,34 +841,31 @@ namespace ufo
           if (lhs->arity() != 1)
           {
             //MULTIPLICATION TRANSFORMATION
-            if (isOp<MULT>(lhs)) sVecTemp.push_back(multTrans(curExp, constY));
-
+            if (isOp<MULT>(lhs)) sVecTemp.push_back(multTrans(curExp, var));
             //DIVISION TRANSFORMATION
             else if (isOp<DIV>(lhs))
             {
               Expr lhs = curExp->left(), rhs = curExp->right();
-              Expr alpha = lhs->right(), varY = lhs->left();
-              if (!contains(varY, constY)) 
-              {
+              Expr alpha = lhs->right(), varSide = lhs->left();
+              if (!contains(varSide, var)) {
                 outs() << "ERROR on divTrans, f(x)/y format not supported." << endl;
                 exit(0);
               }
-
               //applying section 4.2, divisibility constraints
-              if (isOpX<EQ>(curExp)){
-                sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
-                sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-              } else if (isOpX<GT>(curExp)){
-                sVecTemp.push_back(mk<GT>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-              } else if (isOpX<LEQ>(curExp)){
-                sVecTemp.push_back(mk<LEQ>(varY, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-              } else if (isOpX<NEQ>(curExp)){
+              if (isOpX<EQ>(curExp)) {
+                sVecTemp.push_back(mk<GT>(varSide, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
+                sVecTemp.push_back(mk<LEQ>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+              } else if (isOpX<GT>(curExp)) {
+                sVecTemp.push_back(mk<GT>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+              } else if (isOpX<LEQ>(curExp)) {
+                sVecTemp.push_back(mk<LEQ>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+              } else if (isOpX<NEQ>(curExp)) {
                 int i = -1;
                 if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
                 else outs() << "Issue with NEQ expression, no alpha found." << *curExp << endl;
                 while (i >= 0)
                 {
-                  sVecTemp.push_back(mk<NEQ>(varY, i != 0 ? //Ensure 0 is not added to expression
+                  sVecTemp.push_back(mk<NEQ>(varSide, i != 0 ? //Ensure 0 is not added to expression
                     mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
                     mk<MULT>(alpha, rhs)));
                   --i;
@@ -884,39 +882,15 @@ namespace ufo
         // Merging sVecTemp w/ sVec
         else for (auto ite = sVecTemp.begin(); ite != sVecTemp.end(); ++ite) sVec.push_back(*ite);
       }
-
-      //DIVIDE EXPRESSION INTO DIFFERENT CATEGORY
-      for (auto ite = sVec.begin(); ite != sVec.end(); ){
-        if (isOpX<NEQ>(*ite))  D.insert(*ite);
-        else if (isOpX<EQ>(*ite)) E.insert(*ite);
-        else if (isOpX<GT>(*ite)) G.insert(*ite);
-        else if (isOpX<LEQ>(*ite)) LE.insert(*ite);
-        else if (isOpX<GEQ>(*ite)) outs() << "Error, GEQ detected: " << *ite << endl;
-        else if (isOpX<LT>(*ite)) outs() << "Error, LT detected: " << *ite << endl;
-        else outs() << "Insertion ERROR\n";
-        ite++;
-      }
+      ExprSet fin;
+      for (auto t : sVec) fin.insert(t);
 
       //PRINTING SECTION
-      outs() << "Following expressions divided by comparison type:\nE: ";
-      for (auto t : E) outs() <<  *t  << " ";
-      outs() << "\nD: ";
-      for (auto t : D) outs() <<  *t  << " ";
-      outs() << "\nG: ";
-      for (auto t : G) outs() <<  *t  << " ";
-      outs() << "\nLE: ";
-      for (auto t : LE) outs() <<  *t  << " ";
-      outs() << endl;
-      
-      
-      ExprSet final;
-      for(auto t : E) final.insert(t);
-      for(auto t : D) final.insert(t);
-      for(auto t : G) final.insert(t);
-      for(auto t : LE) final.insert(t);
+      outs() << "Expressions after oldNormalizationGen(): " << conjoin(fin, s->getFactory()) << endl;
+
       SMTUtils u1(s->getFactory());
-      outs() << "Is the end equivalent to the beginning: " << u1.isEquiv(s, conjoin(final, s->getFactory())) << endl;
-      return conjoin(final, s->getFactory());
+      outs() << "oldNormalizationGen check, beginning equivalent to result: " << u1.isEquiv(s, conjoin(fin, s->getFactory())) << endl;
+      return conjoin(fin, s->getFactory());
     }
 
     Expr compositeAssm(ExprSet& cnjs, Expr var, bool isInt)
@@ -1551,15 +1525,15 @@ namespace ufo
         ExprMap allAssms = sameAssms;
         for (auto & a : sensitiveVars)
         {
-          outs () << "sensitive var: " << *a << "\n";
+          // outs () << "sensitive var: " << *a << "\n"; //outTest
           ExprSet cnjs;
           for (int b : intersect) getConj(skolemConstraints[a][b], cnjs);
           Expr def = getAssignmentForVar(a, conjoin(cnjs, efac));
-          outs () << "  - - -> " << *def << "\n";
+          // outs () << "  - - -> " << *def << "\n"; //outTest
           allAssms[a] = def;
         }
         Expr bigSkol = combineAssignments(allAssms, someEvals[*intersect.begin()]);
-        outs() << "BigSkol: " << bigSkol << endl;
+        // outs() << "BigSkol: " << bigSkol << endl; //outTest
 
         for (auto & evar : v)
         {
@@ -1571,19 +1545,19 @@ namespace ufo
 
         for (int i = 0; i < partitioning_size; i++)
         {
-          outs() << " partition " << i << ": " << projections[i] << endl;
+          // outs() << " partition " << i << ": " << projections[i] << endl; //outTest
           allAssms = sameAssms;
           if (find(intersect.begin(), intersect.end(), i) == intersect.end())
           {
             for (auto & a : sensitiveVars)
             {
-              outs() << "a: " << a << endl;
+              // outs() << "a: " << a << endl; //outTest
               Expr def = getAssignmentForVar(a, skolemConstraints[a][i]);
-              outs () << "  - - -> " << *def << "\n";
+              // outs () << "  - - -> " << *def << "\n"; //outTest
               allAssms[a] = def;
             }
             bigSkol = mk<ITE>(projections[i], combineAssignments(allAssms, someEvals[i]), bigSkol);
-            outs() << "new BigSkol: " << bigSkol << endl;
+            // outs() << "new BigSkol: " << bigSkol << endl; //outTest
             if (compact) bigSkol = u.simplifyITE(bigSkol);
           }
         }
@@ -1611,27 +1585,35 @@ namespace ufo
 
   /* OLD HELPER FUNCTIONS */
   //used when initializing the element for sVec, most basic initializer.
-    Expr vecElemInit(Expr t, Expr constY)
+  Expr vecElemInit(Expr t, Expr constVar)
+  {
+    if (isOp<ComparissonOp>(t))
     {
-      if (t->arity() == 2)
-      {
-        //ensure y is on lhs.
-        if (contains(t->right(), constY)) t = revExpr(t);
-        Expr lhs = t->left(), rhs = t->right(), constOne = mkTerm(mpz_class(1), t->getFactory());
-        //ensure lhs is not negative
+      //ensure y is on lhs.
+      if (contains(t->right(), constVar)) t = revExpr(t);
+      if ( t == NULL ) return NULL;
+      Expr lhs = t->left(), rhs = t->right();
+      //ensure lhs is not negative
+      if (lhs->arity() == 2) {
+        if (negCoefNumCheck(lhs)) {
+          t = convertNegCoefNum(t); lhs = t->left();
+        }
         if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
           t = negativeCoefCheck(t);
+          if (t == NULL) return NULL;
           lhs = t->left(), rhs = t->right();
         }
-        //applying (3), getting rid of LT and GEQ
-        if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
-        else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
-        return t;
-      } else {
-        outs() << "ERROR on invoking vecElemInit! The input Expr t is invalid!" << endl;
-        exit(0);
       }
+      //applying (3), getting rid of LT and GEQ
+      Expr constOne = mkTerm(mpz_class(1), t->getFactory());
+      if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
+      else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+      return t;
+    } else {
+      outs() << "The input Expr " << *t << " is not comparison!" << endl;
+      return NULL;
     }
+  }
 
   /* GIVEN HELPER FUNCTION */
   // create forall & exists formulas
@@ -1787,15 +1769,17 @@ namespace ufo
     } else return t;
   }
 
-  bool checkNegCoef(Expr lhs)
+  bool negCoefNumCheck(Expr lhs)
   {
-    if (isOpX<MPZ>(lhs->left()) && (boost::lexical_cast<int>(lhs->left()) < 0)) return true;
-    if (isOpX<MPZ>(lhs->right()) && (boost::lexical_cast<int>(lhs->right()) < 0)) return true;
+    if (isOpX<MULT>(lhs)) {
+      if (isOpX<MPZ>(lhs->left()) && (boost::lexical_cast<int>(lhs->left()) < 0)) return true;
+      if (isOpX<MPZ>(lhs->right()) && (boost::lexical_cast<int>(lhs->right()) < 0)) return true;
+    }
     return false;
   }
 
   //converting the negative coefficient into a positive coefficient that's being added an UN_MINUS.
-  Expr convertNegCoef(Expr t)
+  Expr convertNegCoefNum(Expr t)
   {
     Expr coef = NULL, remain = NULL, lhs = t->left(), rhs = t->right();
     if (isOpX<MPZ>(lhs->left())) coef = lhs->left(), remain = lhs->right();
@@ -1803,13 +1787,13 @@ namespace ufo
     if (coef != NULL) {
       coef = mk<UN_MINUS>(mkTerm(mpz_class(boost::lexical_cast<int>(coef) * -1), t->getFactory()));
       t = mk(t->op(), mk<MULT>(coef, remain), rhs);
-    } else outs() << "convertNegCoef: Unable to locate lhs coefficient.\n";
+    } else outs() << "convertNegCoefNum: Unable to locate lhs coefficient.\n";
     return t;
   }
 
   Expr vecElemInitInt(Expr t, Expr constVar)
   {
-    outs() << "before vecElemInit" << t << endl;
+    // outs() << "before vecElemInit" << t << endl; //outTest
     if (isOp<ComparissonOp>(t))
     {
       //EQ or NEQ expression are not currently supported.
@@ -1820,12 +1804,12 @@ namespace ufo
       Expr lhs = t->left(), rhs = t->right();
       //ensure lhs is not negative
       if (lhs->arity() == 2) {
+        if (negCoefNumCheck(lhs)) {
+          t = convertNegCoefNum(t); lhs = t->left();
+        }
         if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
           t = negativeCoefCheck(t);
           if (t == NULL) return NULL;
-          lhs = t->left(), rhs = t->right();
-        } else if (isOpX<MULT>(lhs) && checkNegCoef(lhs)) {
-          t = negativeCoefCheck(convertNegCoef(t));
           lhs = t->left(), rhs = t->right();
         }
       }
@@ -1835,7 +1819,7 @@ namespace ufo
       else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
       //Single conjunct Mult & Div transformation.
       if (isOp<MULT>(lhs) || isOp<DIV>(lhs)) t = divMultTransInt(t, constVar);
-      outs() << "VecElemInitInt after t: " << *t << endl << endl;
+      // outs() << "VecElemInitInt after t: " << *t << endl << endl; //outTest
       return t;
     } else {
       outs() << "The input Expr " << *t << " is not comparison!" << endl;
@@ -1863,7 +1847,7 @@ namespace ufo
     vector<int> intVec;
     // Gather LCM
     for (auto ite = sVec.begin(); ite != sVec.end(); ite++) {
-      outs() << "\tite: " << *ite << endl;
+      // outs() << "\tite: " << *ite << endl;
       Expr lhs = (*ite)->left();
       if (isOp<MULT>(lhs)) {
         if (isOpX<MPZ>(lhs->left())) intVec.push_back(boost::lexical_cast<int>(*lhs->left()));
@@ -1992,7 +1976,7 @@ namespace ufo
     ExprSet outSet, temp, sameTypeSet;
     if (constVar == NULL) return s; // taking care of the y does not exist situation.
     Expr yType = bind::typeOf(constVar); // identify and store the type of y.
-    outs() << "constVar: " << *constVar << ", type: " << *yType << endl; //outTest
+    // outs() << "constVar: " << *constVar << ", type: " << *yType << endl; //outTest
     // Support for boolean case.
     if (yType == mk<BOOL_TY>(s->efac()))
     {
@@ -2000,8 +1984,8 @@ namespace ufo
       output = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
       if (false) {
         SMTUtils u1(s->getFactory());
-        outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
-        outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+        // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+        // outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
       }
       return output;
     }
@@ -2009,20 +1993,17 @@ namespace ufo
     getConj(s, temp);
     for (auto t : temp) {
       if (contains (t, constVar)) {
-        int intVSreal = intOrReal(t);
-
         if (isOpX<NEG>(t) && isOp<ComparissonOp>(t->left()))
           t = mkNeg(t->left());
         if (isOp<ComparissonOp>(t))
         {        
           t = simplifyArithm(reBuildCmp(t, mk<PLUS>(t->arg(0), additiveInverse(t->arg(1))), mkMPZ (0, s->efac())));
           t = ineqSimplifier(constVar, t);
-        }
-        else
-        {
+        } else {
           assert (0);
         }
-
+        int intVSreal = intOrReal(t);
+        // outs() << bind::typeOf(t->right()) << "\nyType: " << yType << "\nintVSreal: " << intVSreal << endl; outTest
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
         else if (yType == mk<INT_TY>(s->efac()) && (intVSreal == 1))
@@ -2041,8 +2022,9 @@ namespace ufo
     // SANITY CHECK
     if (true) {
       SMTUtils u1(s->getFactory());
-      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest /
       outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+      if (contains(output, constVar)) outs() << "MixedQE didn't eliminate var!" << endl;
     }
     return output;
   }
@@ -2112,6 +2094,7 @@ namespace ufo
     t = simplifyBool(t);
 
     if (debug && false) // outTest
+    // if (true)
     {
       outs() << "S: " << *s << "\n";
       outs() << "T: \\exists ";
