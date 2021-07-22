@@ -259,14 +259,14 @@ namespace ufo
       Expr pr = t, tempPr = t;
       ExprMap substsMap;
       ExprMap modelMap;
-      outs() << "Before MBP, pr: " << *pr << endl;
+      // outs() << "Before MBP, pr: " << *pr << endl; //outTest
       for (auto & exp : v)
       {
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
-        outs() << "before mixQEMethod pr: " << pr << endl; // outTest
+        // outs() << "before mixQEMethod pr: " << pr << endl; // outTest
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
-        outs() << "after mixQEMethod pr: " << pr << endl; //outTest
+        // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
@@ -276,7 +276,7 @@ namespace ufo
       someEvals.push_back(modelMap);
       skolMaps.push_back(substsMap);
       projections.push_back(pr);
-      outs() << "current MBP: " << pr << "\n";  //outTest
+      // outs() << "current MBP: " << pr << "\n";  //outTest
       // outs() << "z3_qe_model_project_skolem output: " << tempPr << "\n"; //outTest
       if (true)
       {
@@ -1610,7 +1610,7 @@ namespace ufo
       else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
       return t;
     } else {
-      outs() << "The input Expr " << *t << " is not comparison!" << endl;
+      outs() << "(vecElemInit) The input Expr " << *t << " is not comparison!" << endl;
       return NULL;
     }
   }
@@ -1656,7 +1656,7 @@ namespace ufo
       }
       return (mk(t->op(), lhs, rhs));
     } else {
-      outs() << "Error on multTrans(), input Expr is not comparison!" << endl;
+      outs() << "(multTrans) input Expr is not comparison!" << endl;
       return NULL;
     }
   }
@@ -1717,6 +1717,7 @@ namespace ufo
     filter(s, bind::IsConst(), back_inserter(sVec));
     for (auto ite : sVec)
     {
+      if (isOpX<MPQ>(ite)) outs() << "real? " << *ite << endl;
       // outs() << "*ite: " << *ite  << isOpX<MPZ>(ite) << endl;
       if (bind::isIntConst(ite) || isOpX<MPZ>(ite)) ++intCt;
       else if (bind::isRealConst(ite) || isOpX<MPQ>(ite)) ++realCt;
@@ -1724,6 +1725,8 @@ namespace ufo
     }
     if (realCt == 0 && intCt > 0) return 1;
     else if (realCt > 0 && intCt == 0) return -1;
+    else if (realCt == 0 && intCt == 0) return 2;
+    outs() << "For s: " << s << "\n\tCurrent realCt = " << realCt << "\n\tCurrent intCt = " << intCt << endl;
     return 0; //mixture of int and real.
   }
   
@@ -1821,8 +1824,10 @@ namespace ufo
       if (isOp<MULT>(lhs) || isOp<DIV>(lhs)) t = divMultTransInt(t, constVar);
       // outs() << "VecElemInitInt after t: " << *t << endl << endl; //outTest
       return t;
+    // } else if (t == mk<TRUE>(t->getFactory())) {
+    //   return t; // input is true, nothing needs to be done.
     } else {
-      outs() << "The input Expr " << *t << " is not comparison!" << endl;
+      outs() << "(vecElemInitInt)The input Expr " << *t << " is not comparison!" << endl;
       return NULL;
     }
   }
@@ -1931,7 +1936,7 @@ namespace ufo
       if (isOp<MULT>(lhs)) t = multTrans(t, constVar);
       return t;
     } else {
-      outs() << "The input Expr " << *t << " is not comparison!" << endl;
+      outs() << "(vecElemInitReal)The input Expr " << *t << " is not comparison!" << endl;
       return NULL;
     }
   }
@@ -1984,8 +1989,9 @@ namespace ufo
       output = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
       if (false) {
         SMTUtils u1(s->getFactory());
-        // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
-        // outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+        outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+        outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+        if (contains(output, constVar)) outs() << "MIXQE didn't remove var!\n";
       }
       return output;
     }
@@ -2003,17 +2009,25 @@ namespace ufo
           assert (0);
         }
         int intVSreal = intOrReal(t);
-        // outs() << bind::typeOf(t->right()) << "\nyType: " << yType << "\nintVSreal: " << intVSreal << endl; outTest
+        // outs() << bind::typeOf(t->right()) << "\nyType: " << yType << "\nintVSreal: " << intVSreal << endl; //outTest
+
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
         else if (yType == mk<INT_TY>(s->efac()) && (intVSreal == 1))
           sameTypeSet.insert(t);
-        else return s; //no change can be made, return original expr.
+        // else if (intVSreal == 2) // case when t is true 
+        //   sameTypeSet.insert(t);
+        else if (intVSreal != 2) { // if intVSreal == 2, thus t == true, so do nothing in that case.
+          outs() << "Nothing eliminated\nyType: " << yType << "\nintVSreal: " << intVSreal << endl; //outTest
+          outs() << "contains var? " << contains(s, constVar) << endl; //outTest
+          outs() << "s: " << s << endl;
+          return s;
+        } //no change can be made, return original expr.
       }
       else outSet.insert(t);
     }
     // outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl; // outTest
-    if (sameTypeSet.empty()) return conjoin(outSet, s->efac()); // the constVar does not exist situation has been taken care by line 1585
+    if (sameTypeSet.empty()) return conjoin(outSet, s->efac());
     // Append map to substsMap
     substsMap[constVar] = conjoin(sameTypeSet, s->getFactory());
     outSet.insert(yType == mk<REAL_TY>(s->efac()) ? realQE(sameTypeSet, constVar) : intQE(sameTypeSet, constVar));
@@ -2022,7 +2036,7 @@ namespace ufo
     // SANITY CHECK
     if (true) {
       SMTUtils u1(s->getFactory());
-      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest /
+      // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
       outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
       if (contains(output, constVar)) outs() << "MixedQE didn't eliminate var!" << endl;
     }
