@@ -703,7 +703,7 @@ namespace ufo
      */
     Expr getAssignmentForVar(Expr var, Expr exp)
     {
-      // if (bind::typeOf(var) == mk<INT_TY>(s->efac())) exp = oldNormalizationGen(exp, var);
+      if (bind::typeOf(var) == mk<INT_TY>(s->efac())) exp = oldNormalizationGen(exp, var);
       if (!isNumeric(var))
       {
         if (isOpX<EQ>(exp))
@@ -1747,6 +1747,7 @@ namespace ufo
 
   Expr divMultTransInt(Expr t, Expr constVar)
   {
+    outs() << "divMultTransInt begin: t " << t << endl;
     Expr lhs = t->left(), rhs = t->right();
     if (lhs->arity() == 2) {
       int coef = 1;
@@ -1763,10 +1764,11 @@ namespace ufo
             outs() << *t << " contains coefficient that's not a integer constant! Critical error, quit!" << endl;
             exit(0); //critical error
           }
-        } else if (isOpX<DIV>(lhs)) t = divTransHelper(t, constVar);
+        } else if (isOpX<IDIV>(lhs)) t = divTransHelper(t, constVar);
         lhs = t->left(), rhs = t->right();
         if (lhs->arity() == 1) break;
       }
+      outs() << "divMultTransInt end: t " << mk(t->op(), lhs, rhs) << endl;
       if (coef > 1) return mk(t->op(), mk<MULT>(mkTerm(mpz_class(coef), t->getFactory()), lhs), rhs);
       else return mk(t->op(), lhs, rhs);
     } else return t;
@@ -1794,9 +1796,31 @@ namespace ufo
     return t;
   }
 
+  // Expr addMinusTransInt(Expr t, Expr constVar)
+  // {
+  //   outs() << "before addMinusTransInt: " << t <<endl;
+  //   Expr lhs = t->left(), rhs = t->right();
+  //   while (true)
+  //   {
+  //     if (isOp<PLUS>(lhs))
+  //     {
+  //       if (contains(lhs->left(), constVar)) t = mk(t->op(), lhs->left(), mk<MINUS>(rhs, lhs->right()));
+  //       else if (contains(lhs->right(), constVar)) t = mk(t->op(), lhs->right(), mk<MINUS>(rhs, lhs->left()));
+  //       else outs() << "Error: addMinusTransInt can't find constVar\n";
+  //     } else if (isOp<MINUS>(lhs)) {
+  //       if (contains(lhs->left(), constVar)) t = mk(t->op(), lhs->left(), mk<PLUS>(rhs, lhs->right()));
+  //       else if (contains(lhs->right(), constVar)) t = mk(t->op(), lhs->right(), mk<PLUS>(rhs, lhs->left()));
+  //       else outs() << "Error: addMinusTransInt can't find constVar\n";
+  //     } else break;
+  //     lhs = t->left(), rhs = t->right();
+  //   }
+  //   outs() << "after addMinusTransInt: " << t <<endl;
+  //   return t;
+  // }
+
   Expr vecElemInitInt(Expr t, Expr constVar)
   {
-    // outs() << "before vecElemInit" << t << endl; //outTest
+    outs() << "VecElemInitInt beginning t: " << t << endl; //outTest
     if (isOp<ComparissonOp>(t))
     {
       //EQ or NEQ expression are not currently supported.
@@ -1820,12 +1844,11 @@ namespace ufo
       Expr constOne = mkTerm(mpz_class(1), t->getFactory());
       if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
       else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
-      //Single conjunct Mult & Div transformation.
-      if (isOp<MULT>(lhs) || isOp<DIV>(lhs)) t = divMultTransInt(t, constVar);
-      // outs() << "VecElemInitInt after t: " << *t << endl << endl; //outTest
+      // Single conjunct Mult & Div transformation.
+      if (isOp<MULT>(lhs) || isOp<IDIV>(lhs)) t = divMultTransInt(t, constVar);
+      // if (isOp<PLUS>(lhs) || isOp<MINUS>(lhs)) t = addMinusTransInt(t, constVar); // + and - transformation
+      outs() << "VecElemInitInt after t: " << *t << endl << endl; //outTest
       return t;
-    // } else if (t == mk<TRUE>(t->getFactory())) {
-    //   return t; // input is true, nothing needs to be done.
     } else {
       outs() << "(vecElemInitInt)The input Expr " << *t << " is not comparison!" << endl;
       return NULL;
@@ -2010,13 +2033,10 @@ namespace ufo
         }
         int intVSreal = intOrReal(t);
         // outs() << bind::typeOf(t->right()) << "\nyType: " << yType << "\nintVSreal: " << intVSreal << endl; //outTest
-
         if (yType == mk<REAL_TY>(s->efac()) && (intVSreal == -1))
           sameTypeSet.insert(t);
         else if (yType == mk<INT_TY>(s->efac()) && (intVSreal == 1))
           sameTypeSet.insert(t);
-        // else if (intVSreal == 2) // case when t is true 
-        //   sameTypeSet.insert(t);
         else if (intVSreal != 2) { // if intVSreal == 2, thus t == true, so do nothing in that case.
           outs() << "Nothing eliminated\nyType: " << yType << "\nintVSreal: " << intVSreal << endl; //outTest
           outs() << "contains var? " << contains(s, constVar) << endl; //outTest
@@ -2026,7 +2046,7 @@ namespace ufo
       }
       else outSet.insert(t);
     }
-    // outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl; // outTest
+    outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl; // outTest
     if (sameTypeSet.empty()) return conjoin(outSet, s->efac());
     // Append map to substsMap
     substsMap[constVar] = conjoin(sameTypeSet, s->getFactory());
@@ -2036,9 +2056,10 @@ namespace ufo
     // SANITY CHECK
     if (true) {
       SMTUtils u1(s->getFactory());
-      // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
-      outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
+      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
+      outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl; //outTest
       if (contains(output, constVar)) outs() << "MixedQE didn't eliminate var!" << endl;
+      // if (u1.isEquiv(orig, output) == false) exit(0);
     }
     return output;
   }

@@ -471,9 +471,11 @@ namespace ufo
    *  Helper used in ineqMover
    */
   template <typename T> static Expr rewriteHelperM(Expr e, Expr var){
+    // outs() << "beginning, rewriteHelperM, e: " << *e << endl;
     Expr l = e->left();
     Expr r = e->right();
     ExprVector orig_lhs, orig_rhs, lhs, rhs;
+    ExprVector divVec, idivVec;
 
     // parse
 
@@ -481,15 +483,22 @@ namespace ufo
     getAddTerm(r, orig_rhs);
     for (auto & a : orig_lhs)
     {
-      if (contains (a, var)) lhs.push_back(a);
+      if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
+        if (isOp<DIV>(a)) divVec.push_back(a->right());
+        else idivVec.push_back(a->right());
+        lhs.push_back(a->left());
+      } else if (contains (a, var)) lhs.push_back(a);
       else rhs.push_back(additiveInverse(a));
     }
     for (auto & a : orig_rhs)
     {
-      if (contains (a, var)) lhs.push_back(additiveInverse(a));
+      if (isOp<DIV>(a) && contains(a->left(), var)){
+        divVec.push_back(a->right());
+        lhs.push_back(a->left());
+      } if (contains (a, var)) lhs.push_back(additiveInverse(a));
       else rhs.push_back(a);
     }
-
+    outs() << "lhs: " << conjoin(lhs, e->getFactory()) << "\nrhs: " << conjoin(rhs, e->getFactory()) << endl;
     // combine results
 
     cpp_int coef = 0;
@@ -509,8 +518,8 @@ namespace ufo
 
     if (!lhs.empty())
     {
-//      errs() << "WARNING: COULD NOT NORMALIZE w.r.t. " << *var << ": "
-//             << *conjoin (lhs, e->getFactory()) << "\n";
+    errs() << "WARNING: COULD NOT NORMALIZE w.r.t. " << *var << ": "
+          << *conjoin (lhs, e->getFactory()) << "\n";
       return e;
     }
 
@@ -524,6 +533,10 @@ namespace ufo
       l = mk<MULT>(mkMPZ(coef, e->getFactory()), var);
     }
 
+    for (auto denom : divVec) l = mk<DIV>(l, denom);
+    for (auto denom : idivVec) l = mk<IDIV>(l, denom);
+
+    // outs() << "end, rewriteHelperM, e: " << mk<T>(l,r);
     return mk<T>(l,r);
   }
 
