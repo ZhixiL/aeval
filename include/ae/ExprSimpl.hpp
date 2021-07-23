@@ -471,7 +471,7 @@ namespace ufo
    *  Helper used in ineqMover
    */
   template <typename T> static Expr rewriteHelperM(Expr e, Expr var){
-    // outs() << "beginning, rewriteHelperM, e: " << *e << endl;
+    outs() << "beginning, rewriteHelperM, e: " << *e << endl;
     Expr l = e->left();
     Expr r = e->right();
     ExprVector orig_lhs, orig_rhs, lhs, rhs;
@@ -479,10 +479,14 @@ namespace ufo
 
     // parse
 
+    bool negLeft = false;
     getAddTerm(l, orig_lhs);
     getAddTerm(r, orig_rhs);
     for (auto & a : orig_lhs)
     {
+      // capture un_minus
+      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); negLeft = true;}
+
       if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
         if (isOp<DIV>(a)) divVec.push_back(a->right());
         else idivVec.push_back(a->right());
@@ -492,8 +496,11 @@ namespace ufo
     }
     for (auto & a : orig_rhs)
     {
-      if (isOp<DIV>(a) && contains(a->left(), var)){
-        divVec.push_back(a->right());
+      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); negLeft = true;}
+
+      if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
+        if (isOp<DIV>(a)) divVec.push_back(a->right());
+        else idivVec.push_back(a->right());
         lhs.push_back(a->left());
       } if (contains (a, var)) lhs.push_back(additiveInverse(a));
       else rhs.push_back(a);
@@ -535,8 +542,9 @@ namespace ufo
 
     for (auto denom : divVec) l = mk<DIV>(l, denom);
     for (auto denom : idivVec) l = mk<IDIV>(l, denom);
+    if (negLeft) l = mk<UN_MINUS>(l);
 
-    // outs() << "end, rewriteHelperM, e: " << mk<T>(l,r);
+    outs() << "end, rewriteHelperM, e: " << mk<T>(l, r) << endl;
     return mk<T>(l,r);
   }
 

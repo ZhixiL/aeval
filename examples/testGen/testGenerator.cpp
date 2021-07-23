@@ -10,12 +10,13 @@ using namespace std;
 
 // var "y" has to be on pos 0, other variables can be anywhere after that.
 const string constY = "y";
-// File count, expression count per example(at least 1), length of final Expression (at least 1)
-const int EXPR_COUNT_MIN = 1, EXPR_COUNT_MAX = 4, MIN_EXPR_LEN = 1, MAX_EXPR_LEN = 3;
+// File count, expression count per example(at least 1), length of final Expression 
+const int EXPR_COUNT_MIN = 2, EXPR_COUNT_MAX = 5, MIN_EXPR_LEN = 1, MAX_EXPR_LEN = 5;
 const int CONST_MAX = 5;
 const bool NEQ = true;
 
-
+// forall, exists wrapper
+string varWrapper();
 //Variable declaration generator
 string declVar();
 //wrapping around the conjunctions
@@ -49,23 +50,25 @@ string declVar()
   for (int i = 1; i <= MAX_EXPR_LEN; i++) declOut = declOut + "(declare-fun x" + to_string(i) + " () Int)\n";
   return declOut;
 }
+
 void conGenWrap() 
 {
-  // ofstream fileOut;
-  // for (int curFile = 1; curFile <= F_COUNT; ++curFile)
-  // {
-  //   fileOut.open("genEx" + to_string(curFile) + ".smt2");
-  //   fileOut << declVar();
-  //   fileOut << endl << "(assert (" << endl; // starting assertion
-  //   fileOut << conGen(rand() % (EXPR_COUNT_MAX - EXPR_COUNT_MIN + 1) + EXPR_COUNT_MIN);
-  //   fileOut << endl << "))"; // the end
-  //   fileOut.close();
-  // }
-  cout << declVar();
-  cout << endl << "(assert (" << endl; // starting assertion
+  // cout << declVar();
+  cout << endl << "(assert " << endl; // starting assertion
+  cout << varWrapper() << "(" << endl; // forall, exists
   cout << conGen(rand() % (EXPR_COUNT_MAX - EXPR_COUNT_MIN + 1) + EXPR_COUNT_MIN);
-  cout << endl << "))"; // the end
+  cout << endl << "))))"; // the end
 }
+
+string varWrapper()
+{
+  string exists = "\t(exists ((y Int))";
+  string forall = "";
+  for (int i = 1; i <= MAX_EXPR_LEN; i++) forall = forall + " (x" + to_string(i) + " Int)";
+  forall = "(forall (" + forall + ")\n";
+  return (forall + exists);
+}
+
 string conGen(int exprCount)
 {
   int lCount = exprCount / 2 + exprCount % 2;
@@ -93,7 +96,7 @@ string exprGen(string var)
   string finResult;
   if (var == "y") finResult = opGen();
   else finResult = opGen();
-  if (finResult == "/ ")
+  if (finResult == "div ")
     return (finResult + var + " " + to_string((rand() % (CONST_MAX - 2)) + 2));
   else if (finResult == "* ") {
     bool neg = (rand() % 2 == 1 ? true : false);
@@ -132,13 +135,14 @@ string compOpGen()
   }
   return "= "; // Double chance for eq, for later wrapping of neq.
 }
+
 string opGen()
 {
   int choice = rand() % 2;
   switch (choice)
   {
     case 0: return "* ";
-    case 1: return "/ ";
+    case 1: return "div ";
     // case 2: return "+ ";
     // case 3: return "- ";
   }

@@ -3,7 +3,7 @@
 (declare-fun x2 () Int)
 
 (assert (and (and (
-  >= (+ x1 x2) (* y 3)
+  >= (+ x1 x2) (/ y 3)
 ) (
   >= y (* 3 x2)
 )) (and (

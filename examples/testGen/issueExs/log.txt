@@ -1,0 +1,1108 @@
+Running: ./bug1_fixed.smt2
+before mixQEMethod pr: (((y/3)<=x2)&&(y>x1))
+beginning, rewriteHelperM, e: (((y/3)+(-x2))<=0)
+lhs: y
+rhs: x2
+end, rewriteHelperM, e: ((y/3)<=x2)
+beginning, rewriteHelperM, e: ((y+(-x1))>0)
+lhs: y
+rhs: x1
+end, rewriteHelperM, e: (y>x1)
+sameTypeSet: (((y/3)<=x2)&&(y>x1))
+VecElemInitInt beginning t: ((y/3)<=x2)
+divMultTransInt begin: t ((y/3)<=x2)
+divMultTransInt end: t (y<=(((x2+1)*3)-1))
+VecElemInitInt after t: (y<=(((x2+1)*3)-1))
+
+VecElemInitInt beginning t: (y>x1)
+VecElemInitInt after t: (y>x1)
+
+Before mixQE: (exists (INT) (((y/3)<=x2)&&(y>x1)))
+After mixQE: (x1<(((x2+1)*3)-1))
+
+
+Running: ./bug2_fixed.smt2
+before mixQEMethod pr: (((((4*x1)+(x2/2))+1)<(3*y))&&((((x1/4)+(x2/2))+3)>(4*y)))
+beginning, rewriteHelperM, e: ([+    4*x1    x2/2    -3*y]<-1)
+lhs: (-3*y)
+rhs: [&&    -4*x1    -(x2/2)    -1]
+end, rewriteHelperM, e: ((-3*y)<[+    -4*x1    -(x2/2)    -1])
+beginning, rewriteHelperM, e: ([+    x2/2    x1/4    -4*y]>-3)
+lhs: (-4*y)
+rhs: [&&    -(x2/2)    -(x1/4)    -3]
+end, rewriteHelperM, e: ((-4*y)>[+    -(x2/2)    -(x1/4)    -3])
+sameTypeSet: (((-3*y)<[+    -4*x1    -(x2/2)    -1])&&((-4*y)>[+    -(x2/2)    -(x1/4)    -3]))
+VecElemInitInt beginning t: ((-3*y)<[+    -4*x1    -(x2/2)    -1])
+divMultTransInt begin: t ((3*y)>((-1)*[+    -4*x1    -(x2/2)    -1]))
+divMultTransInt end: t (y>((-1)*[+    -4*x1    -(x2/2)    -1]))
+VecElemInitInt after t: ((3*y)>((-1)*[+    -4*x1    -(x2/2)    -1]))
+
+VecElemInitInt beginning t: ((-4*y)>[+    -(x2/2)    -(x1/4)    -3])
+divMultTransInt begin: t ((4*y)<=(((-1)*[+    -(x2/2)    -(x1/4)    -3])-1))
+divMultTransInt end: t (y<=(((-1)*[+    -(x2/2)    -(x1/4)    -3])-1))
+VecElemInitInt after t: ((4*y)<=(((-1)*[+    -(x2/2)    -(x1/4)    -3])-1))
+
+Before mixQE: (exists (INT) (((((4*x1)+(x2/2))+1)<(3*y))&&((((x1/4)+(x2/2))+3)>(4*y))))
+After mixQE: (((4*((-1)*[+    -4*x1    -(x2/2)    -1]))<(3*(((-1)*[+    -(x2/2)    -(x1/4)    -3])-1)))&&(((4*((-1)*[+    -4*x1    -(x2/2)    -1]))/12)<((3*(((-1)*[+    -(x2/2)    -(x1/4)    -3])-1))/12)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((-4*[+    -4*x1    -(x2/2)    -1])<((3*((-1*[+    -(x2/2)    -(x1/4)    -3])-1))+0))&&(((-4*[+    -4*x1    -(x2/2)    -1])/12)<(((3*((-1*[+    -(x2/2)    -(x1/4)    -3])-1))/12)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 0
+
+valid subset:
+(assert (and (< (let ((a!1 (* (- 4) (+ (* (- 4) x1) (- (div x2 2)) (- 1)))))
+  (div a!1 12)) (let ((a!1 (* (- 1) (+ (- (div x2 2)) (- (div x1 4)) (- 3)))))
+  (+ (div (* 3 (- a!1 1)) 12) 0))) (< (* (- 4) (+ (* (- 4) x1) (- (div x2 2)) (- 1))) (+ (* 3 (- 1) (- (div x2 2)))
+   (* 3 (- 1) (- (div x1 4)))
+   (* 3 (- 1) (- 3))
+   (* 3 (- 1))
+   0))))
+
+
+Running: ./divEx1.smt2
+before mixQEMethod pr: (((y/2)=((x1/4)+4))&&(((x1/2)+3)!=(y/4)))
+beginning, rewriteHelperM, e: (((y/2)+(-(x1/4)))>=4)
+lhs: y
+rhs: ((x1/4)&&4)
+end, rewriteHelperM, e: ((y/2)>=((x1/4)+4))
+beginning, rewriteHelperM, e: (((y/2)+(-(x1/4)))<=4)
+lhs: y
+rhs: ((x1/4)&&4)
+end, rewriteHelperM, e: ((y/2)<=((x1/4)+4))
+beginning, rewriteHelperM, e: (((x1/2)+(-(y/4)))<-3)
+lhs: y
+rhs: ((-(x1/2))&&-3)
+end, rewriteHelperM, e: ((-(y/4))<((-(x1/2))+-3))
+sameTypeSet: [&&    (y/2)>=((x1/4)+4)    (y/2)<=((x1/4)+4)    (y/4)>(-1*(-3+(-(x1/2))))]
+VecElemInitInt beginning t: ((y/2)>=((x1/4)+4))
+divMultTransInt begin: t ((y/2)>(((x1/4)+4)-1))
+divMultTransInt end: t (y>((((((x1/4)+4)-1)+1)*2)-1))
+VecElemInitInt after t: (y>((((((x1/4)+4)-1)+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/2)<=((x1/4)+4))
+divMultTransInt begin: t ((y/2)<=((x1/4)+4))
+divMultTransInt end: t (y<=(((((x1/4)+4)+1)*2)-1))
+VecElemInitInt after t: (y<=(((((x1/4)+4)+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/4)>(-1*(-3+(-(x1/2)))))
+divMultTransInt begin: t ((y/4)>(-1*(-3+(-(x1/2)))))
+divMultTransInt end: t (y>((((-1*(-3+(-(x1/2))))+1)*4)-1))
+VecElemInitInt after t: (y>((((-1*(-3+(-(x1/2))))+1)*4)-1))
+
+Before mixQE: (exists (INT) [&&    (y/2)>=((x1/4)+4)    (y/2)<=((x1/4)+4)    ((x1/2)+3)<(y/4)])
+After mixQE: ((((((((x1/4)+4)-1)+1)*2)-1)<(((((x1/4)+4)+1)*2)-1))&&(((((-1*(-3+(-(x1/2))))+1)*4)-1)<(((((x1/4)+4)+1)*2)-1)))
+
+
+Running: ./divEx10.smt2
+before mixQEMethod pr: (((y/4)>=(x1/4))&&((y/4)!=((x1/2)+4)))
+beginning, rewriteHelperM, e: (((y/4)+(-(x1/4)))>=0)
+lhs: y
+rhs: (x1/4)
+end, rewriteHelperM, e: ((y/4)>=(x1/4))
+beginning, rewriteHelperM, e: (((y/4)+(-(x1/2)))<4)
+lhs: y
+rhs: ((x1/2)&&4)
+end, rewriteHelperM, e: ((y/4)<((x1/2)+4))
+sameTypeSet: (((y/4)>=(x1/4))&&((y/4)<((x1/2)+4)))
+VecElemInitInt beginning t: ((y/4)>=(x1/4))
+divMultTransInt begin: t ((y/4)>((x1/4)-1))
+divMultTransInt end: t (y>(((((x1/4)-1)+1)*4)-1))
+VecElemInitInt after t: (y>(((((x1/4)-1)+1)*4)-1))
+
+VecElemInitInt beginning t: ((y/4)<((x1/2)+4))
+divMultTransInt begin: t ((y/4)<=(((x1/2)+4)-1))
+divMultTransInt end: t (y<=((((((x1/2)+4)-1)+1)*4)-1))
+VecElemInitInt after t: (y<=((((((x1/2)+4)-1)+1)*4)-1))
+
+Before mixQE: (exists (INT) (((y/4)>=(x1/4))&&((y/4)<((x1/2)+4))))
+After mixQE: ((((((x1/4)-1)+1)*4)-1)<((((((x1/2)+4)-1)+1)*4)-1))
+
+
+Running: ./divEx2.smt2
+before mixQEMethod pr: (((x1/4)=(y/4))&&((y/3)<(x1/2)))
+beginning, rewriteHelperM, e: (((y/3)+(-(x1/2)))<0)
+lhs: y
+rhs: (x1/2)
+end, rewriteHelperM, e: ((y/3)<(x1/2))
+beginning, rewriteHelperM, e: (((x1/4)+(-(y/4)))>=0)
+lhs: y
+rhs: (-(x1/4))
+end, rewriteHelperM, e: ((-(y/4))>=(-(x1/4)))
+beginning, rewriteHelperM, e: (((x1/4)+(-(y/4)))<=0)
+lhs: y
+rhs: (-(x1/4))
+end, rewriteHelperM, e: ((-(y/4))<=(-(x1/4)))
+sameTypeSet: [&&    (y/3)<(x1/2)    (y/4)<=(x1/4)    (y/4)>=(x1/4)]
+VecElemInitInt beginning t: ((y/3)<(x1/2))
+divMultTransInt begin: t ((y/3)<=((x1/2)-1))
+divMultTransInt end: t (y<=(((((x1/2)-1)+1)*3)-1))
+VecElemInitInt after t: (y<=(((((x1/2)-1)+1)*3)-1))
+
+VecElemInitInt beginning t: ((y/4)<=(x1/4))
+divMultTransInt begin: t ((y/4)<=(x1/4))
+divMultTransInt end: t (y<=((((x1/4)+1)*4)-1))
+VecElemInitInt after t: (y<=((((x1/4)+1)*4)-1))
+
+VecElemInitInt beginning t: ((y/4)>=(x1/4))
+divMultTransInt begin: t ((y/4)>((x1/4)-1))
+divMultTransInt end: t (y>(((((x1/4)-1)+1)*4)-1))
+VecElemInitInt after t: (y>(((((x1/4)-1)+1)*4)-1))
+
+Before mixQE: (exists (INT) [&&    (y/3)<(x1/2)    (x1/4)>=(y/4)    (x1/4)<=(y/4)])
+After mixQE: (((((((x1/4)-1)+1)*4)-1)<(((((x1/2)-1)+1)*3)-1))&&((((((x1/4)-1)+1)*4)-1)<((((x1/4)+1)*4)-1)))
+
+
+Running: ./divEx3.smt2
+before mixQEMethod pr: (((y/2)=((x1/2)+(x2/3)))&&(((x1/4)+2)!=(y/3)))
+beginning, rewriteHelperM, e: ([+    y/2    -(x1/2)    -(x2/3)]>=0)
+lhs: y
+rhs: ((x1/2)&&(x2/3))
+end, rewriteHelperM, e: ((y/2)>=((x1/2)+(x2/3)))
+beginning, rewriteHelperM, e: ([+    y/2    -(x1/2)    -(x2/3)]<=0)
+lhs: y
+rhs: ((x1/2)&&(x2/3))
+end, rewriteHelperM, e: ((y/2)<=((x1/2)+(x2/3)))
+beginning, rewriteHelperM, e: (((x1/4)+(-(y/3)))<-2)
+lhs: y
+rhs: ((-(x1/4))&&-2)
+end, rewriteHelperM, e: ((-(y/3))<((-(x1/4))+-2))
+sameTypeSet: [&&    (y/2)>=((x1/2)+(x2/3))    (y/2)<=((x1/2)+(x2/3))    (y/3)>(-1*(-2+(-(x1/4))))]
+VecElemInitInt beginning t: ((y/2)>=((x1/2)+(x2/3)))
+divMultTransInt begin: t ((y/2)>(((x1/2)+(x2/3))-1))
+divMultTransInt end: t (y>((((((x1/2)+(x2/3))-1)+1)*2)-1))
+VecElemInitInt after t: (y>((((((x1/2)+(x2/3))-1)+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/2)<=((x1/2)+(x2/3)))
+divMultTransInt begin: t ((y/2)<=((x1/2)+(x2/3)))
+divMultTransInt end: t (y<=(((((x1/2)+(x2/3))+1)*2)-1))
+VecElemInitInt after t: (y<=(((((x1/2)+(x2/3))+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/3)>(-1*(-2+(-(x1/4)))))
+divMultTransInt begin: t ((y/3)>(-1*(-2+(-(x1/4)))))
+divMultTransInt end: t (y>((((-1*(-2+(-(x1/4))))+1)*3)-1))
+VecElemInitInt after t: (y>((((-1*(-2+(-(x1/4))))+1)*3)-1))
+
+Before mixQE: (exists (INT) [&&    (y/2)>=((x1/2)+(x2/3))    (y/2)<=((x1/2)+(x2/3))    ((x1/4)+2)<(y/3)])
+After mixQE: ((((((((x1/2)+(x2/3))-1)+1)*2)-1)<(((((x1/2)+(x2/3))+1)*2)-1))&&(((((-1*(-2+(-(x1/4))))+1)*3)-1)<(((((x1/2)+(x2/3))+1)*2)-1)))
+
+
+Running: ./divEx4.smt2
+before mixQEMethod pr: (((y/3)>((x1/4)+(x2/3)))&&((y/4)<(((x1/4)+(x2/4))+4)))
+beginning, rewriteHelperM, e: ([+    y/3    -(x1/4)    -(x2/3)]>0)
+lhs: y
+rhs: ((x1/4)&&(x2/3))
+end, rewriteHelperM, e: ((y/3)>((x1/4)+(x2/3)))
+beginning, rewriteHelperM, e: ([+    y/4    -(x1/4)    -(x2/4)]<4)
+lhs: y
+rhs: [&&    x1/4    x2/4    4]
+end, rewriteHelperM, e: ((y/4)<[+    x1/4    x2/4    4])
+sameTypeSet: (((y/3)>((x1/4)+(x2/3)))&&((y/4)<[+    x1/4    x2/4    4]))
+VecElemInitInt beginning t: ((y/3)>((x1/4)+(x2/3)))
+divMultTransInt begin: t ((y/3)>((x1/4)+(x2/3)))
+divMultTransInt end: t (y>(((((x1/4)+(x2/3))+1)*3)-1))
+VecElemInitInt after t: (y>(((((x1/4)+(x2/3))+1)*3)-1))
+
+VecElemInitInt beginning t: ((y/4)<[+    x1/4    x2/4    4])
+divMultTransInt begin: t ((y/4)<=([+    x1/4    x2/4    4]-1))
+divMultTransInt end: t (y<=(((([+    x1/4    x2/4    4]-1)+1)*4)-1))
+VecElemInitInt after t: (y<=(((([+    x1/4    x2/4    4]-1)+1)*4)-1))
+
+Before mixQE: (exists (INT) (((y/3)>((x1/4)+(x2/3)))&&((y/4)<(((x1/4)+(x2/4))+4))))
+After mixQE: ((((((x1/4)+(x2/3))+1)*3)-1)<(((([+    x1/4    x2/4    4]-1)+1)*4)-1))
+
+
+Running: ./divEx5.smt2
+before mixQEMethod pr: (((y/2)=((x1/4)+(x2/4)))&&((y/2)<=(((x1/3)+(x2/3))+3)))
+beginning, rewriteHelperM, e: ([+    y/2    -(x1/3)    -(x2/3)]<=3)
+lhs: y
+rhs: [&&    x1/3    x2/3    3]
+end, rewriteHelperM, e: ((y/2)<=[+    x1/3    x2/3    3])
+beginning, rewriteHelperM, e: ([+    y/2    -(x1/4)    -(x2/4)]>=0)
+lhs: y
+rhs: ((x1/4)&&(x2/4))
+end, rewriteHelperM, e: ((y/2)>=((x1/4)+(x2/4)))
+beginning, rewriteHelperM, e: ([+    y/2    -(x1/4)    -(x2/4)]<=0)
+lhs: y
+rhs: ((x1/4)&&(x2/4))
+end, rewriteHelperM, e: ((y/2)<=((x1/4)+(x2/4)))
+sameTypeSet: [&&    (y/2)>=((x1/4)+(x2/4))    (y/2)<=((x1/4)+(x2/4))    (y/2)<=[+    x1/3    x2/3    3]]
+VecElemInitInt beginning t: ((y/2)>=((x1/4)+(x2/4)))
+divMultTransInt begin: t ((y/2)>(((x1/4)+(x2/4))-1))
+divMultTransInt end: t (y>((((((x1/4)+(x2/4))-1)+1)*2)-1))
+VecElemInitInt after t: (y>((((((x1/4)+(x2/4))-1)+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/2)<=((x1/4)+(x2/4)))
+divMultTransInt begin: t ((y/2)<=((x1/4)+(x2/4)))
+divMultTransInt end: t (y<=(((((x1/4)+(x2/4))+1)*2)-1))
+VecElemInitInt after t: (y<=(((((x1/4)+(x2/4))+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/2)<=[+    x1/3    x2/3    3])
+divMultTransInt begin: t ((y/2)<=[+    x1/3    x2/3    3])
+divMultTransInt end: t (y<=((([+    x1/3    x2/3    3]+1)*2)-1))
+VecElemInitInt after t: (y<=((([+    x1/3    x2/3    3]+1)*2)-1))
+
+Before mixQE: (exists (INT) [&&    (y/2)<=(((x1/3)+(x2/3))+3)    (y/2)>=((x1/4)+(x2/4))    (y/2)<=((x1/4)+(x2/4))])
+After mixQE: ((((((((x1/4)+(x2/4))-1)+1)*2)-1)<(((((x1/4)+(x2/4))+1)*2)-1))&&(((((((x1/4)+(x2/4))-1)+1)*2)-1)<((([+    x1/3    x2/3    3]+1)*2)-1)))
+
+
+Running: ./divEx6.smt2
+before mixQEMethod pr: (((y/2)<((x1/2)+3))&&((((x1/4)+(x2/2))+1)!=(y/2)))
+beginning, rewriteHelperM, e: (((y/2)+(-(x1/2)))<3)
+lhs: y
+rhs: ((x1/2)&&3)
+end, rewriteHelperM, e: ((y/2)<((x1/2)+3))
+beginning, rewriteHelperM, e: ([+    x1/4    x2/2    -(y/2)]>-1)
+lhs: y
+rhs: [&&    -(x1/4)    -(x2/2)    -1]
+end, rewriteHelperM, e: ((-(y/2))>[+    -(x1/4)    -(x2/2)    -1])
+sameTypeSet: (((y/2)<((x1/2)+3))&&((y/2)<(-1*[+    -1    -(x1/4)    -(x2/2)])))
+VecElemInitInt beginning t: ((y/2)<((x1/2)+3))
+divMultTransInt begin: t ((y/2)<=(((x1/2)+3)-1))
+divMultTransInt end: t (y<=((((((x1/2)+3)-1)+1)*2)-1))
+VecElemInitInt after t: (y<=((((((x1/2)+3)-1)+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/2)<(-1*[+    -1    -(x1/4)    -(x2/2)]))
+divMultTransInt begin: t ((y/2)<=((-1*[+    -1    -(x1/4)    -(x2/2)])-1))
+divMultTransInt end: t (y<=(((((-1*[+    -1    -(x1/4)    -(x2/2)])-1)+1)*2)-1))
+VecElemInitInt after t: (y<=(((((-1*[+    -1    -(x1/4)    -(x2/2)])-1)+1)*2)-1))
+
+Before mixQE: (exists (INT) (((y/2)<((x1/2)+3))&&((((x1/4)+(x2/2))+1)>(y/2))))
+After mixQE: true
+
+
+Running: ./divEx7.smt2
+before mixQEMethod pr: (((y/4)>(((x1/4)+(x2/2))+4))&&(((x1/2)+2)<(y/3)))
+beginning, rewriteHelperM, e: ([+    y/4    -(x1/4)    -(x2/2)]>4)
+lhs: y
+rhs: [&&    x1/4    x2/2    4]
+end, rewriteHelperM, e: ((y/4)>[+    x1/4    x2/2    4])
+beginning, rewriteHelperM, e: (((x1/2)+(-(y/3)))<-2)
+lhs: y
+rhs: ((-(x1/2))&&-2)
+end, rewriteHelperM, e: ((-(y/3))<((-(x1/2))+-2))
+sameTypeSet: (((y/4)>[+    x1/4    x2/2    4])&&((y/3)>(-1*(-2+(-(x1/2))))))
+VecElemInitInt beginning t: ((y/4)>[+    x1/4    x2/2    4])
+divMultTransInt begin: t ((y/4)>[+    x1/4    x2/2    4])
+divMultTransInt end: t (y>((([+    x1/4    x2/2    4]+1)*4)-1))
+VecElemInitInt after t: (y>((([+    x1/4    x2/2    4]+1)*4)-1))
+
+VecElemInitInt beginning t: ((y/3)>(-1*(-2+(-(x1/2)))))
+divMultTransInt begin: t ((y/3)>(-1*(-2+(-(x1/2)))))
+divMultTransInt end: t (y>((((-1*(-2+(-(x1/2))))+1)*3)-1))
+VecElemInitInt after t: (y>((((-1*(-2+(-(x1/2))))+1)*3)-1))
+
+Before mixQE: (exists (INT) (((y/4)>(((x1/4)+(x2/2))+4))&&(((x1/2)+2)<(y/3))))
+After mixQE: true
+
+
+Running: ./divEx8.smt2
+before mixQEMethod pr: (((((x1/3)+(x2/2))+3)=(y/3))&&(((x1/2)+2)<(y/4)))
+beginning, rewriteHelperM, e: (((x1/2)+(-(y/4)))<-2)
+lhs: y
+rhs: ((-(x1/2))&&-2)
+end, rewriteHelperM, e: ((-(y/4))<((-(x1/2))+-2))
+beginning, rewriteHelperM, e: ([+    x1/3    x2/2    -(y/3)]>=-3)
+lhs: y
+rhs: [&&    -(x1/3)    -(x2/2)    -3]
+end, rewriteHelperM, e: ((-(y/3))>=[+    -(x1/3)    -(x2/2)    -3])
+beginning, rewriteHelperM, e: ([+    x1/3    x2/2    -(y/3)]<=-3)
+lhs: y
+rhs: [&&    -(x1/3)    -(x2/2)    -3]
+end, rewriteHelperM, e: ((-(y/3))<=[+    -(x1/3)    -(x2/2)    -3])
+sameTypeSet: [&&    (y/4)>(-1*(-2+(-(x1/2))))    (y/3)<=(-1*[+    -3    -(x1/3)    -(x2/2)])    (y/3)>=(-1*[+    -3    -(x1/3)    -(x2/2)])]
+VecElemInitInt beginning t: ((y/4)>(-1*(-2+(-(x1/2)))))
+divMultTransInt begin: t ((y/4)>(-1*(-2+(-(x1/2)))))
+divMultTransInt end: t (y>((((-1*(-2+(-(x1/2))))+1)*4)-1))
+VecElemInitInt after t: (y>((((-1*(-2+(-(x1/2))))+1)*4)-1))
+
+VecElemInitInt beginning t: ((y/3)<=(-1*[+    -3    -(x1/3)    -(x2/2)]))
+divMultTransInt begin: t ((y/3)<=(-1*[+    -3    -(x1/3)    -(x2/2)]))
+divMultTransInt end: t (y<=((((-1*[+    -3    -(x1/3)    -(x2/2)])+1)*3)-1))
+VecElemInitInt after t: (y<=((((-1*[+    -3    -(x1/3)    -(x2/2)])+1)*3)-1))
+
+VecElemInitInt beginning t: ((y/3)>=(-1*[+    -3    -(x1/3)    -(x2/2)]))
+divMultTransInt begin: t ((y/3)>((-1*[+    -3    -(x1/3)    -(x2/2)])-1))
+divMultTransInt end: t (y>(((((-1*[+    -3    -(x1/3)    -(x2/2)])-1)+1)*3)-1))
+VecElemInitInt after t: (y>(((((-1*[+    -3    -(x1/3)    -(x2/2)])-1)+1)*3)-1))
+
+Before mixQE: (exists (INT) [&&    ((x1/2)+2)<(y/4)    (((x1/3)+(x2/2))+3)>=(y/3)    (((x1/3)+(x2/2))+3)<=(y/3)])
+After mixQE: ((((((-1*(-2+(-(x1/2))))+1)*4)-1)<((((-1*[+    -3    -(x1/3)    -(x2/2)])+1)*3)-1))&&((((((-1*[+    -3    -(x1/3)    -(x2/2)])-1)+1)*3)-1)<((((-1*[+    -3    -(x1/3)    -(x2/2)])+1)*3)-1)))
+
+
+Running: ./divEx9.smt2
+before mixQEMethod pr: (((y/2)>((x1/2)+(x2/3)))&&(((x1/2)+1)!=(y/4)))
+beginning, rewriteHelperM, e: ([+    y/2    -(x1/2)    -(x2/3)]>0)
+lhs: y
+rhs: ((x1/2)&&(x2/3))
+end, rewriteHelperM, e: ((y/2)>((x1/2)+(x2/3)))
+beginning, rewriteHelperM, e: (((x1/2)+(-(y/4)))<-1)
+lhs: y
+rhs: ((-(x1/2))&&-1)
+end, rewriteHelperM, e: ((-(y/4))<((-(x1/2))+-1))
+sameTypeSet: (((y/2)>((x1/2)+(x2/3)))&&((y/4)>(-1*(-1+(-(x1/2))))))
+VecElemInitInt beginning t: ((y/2)>((x1/2)+(x2/3)))
+divMultTransInt begin: t ((y/2)>((x1/2)+(x2/3)))
+divMultTransInt end: t (y>(((((x1/2)+(x2/3))+1)*2)-1))
+VecElemInitInt after t: (y>(((((x1/2)+(x2/3))+1)*2)-1))
+
+VecElemInitInt beginning t: ((y/4)>(-1*(-1+(-(x1/2)))))
+divMultTransInt begin: t ((y/4)>(-1*(-1+(-(x1/2)))))
+divMultTransInt end: t (y>((((-1*(-1+(-(x1/2))))+1)*4)-1))
+VecElemInitInt after t: (y>((((-1*(-1+(-(x1/2))))+1)*4)-1))
+
+Before mixQE: (exists (INT) (((y/2)>((x1/2)+(x2/3)))&&(((x1/2)+1)<(y/4))))
+After mixQE: true
+
+
+Running: ./genEx1_fixed.smt2
+before mixQEMethod pr: ((((x1/2)+3)<((-5)*y))&&((((x1/3)+(x2/3))+4)<((-4)*y)))
+beginning, rewriteHelperM, e: (((x1/2)+(5*y))<-3)
+lhs: (5*y)
+rhs: ((-(x1/2))&&-3)
+end, rewriteHelperM, e: ((5*y)<((-(x1/2))+-3))
+beginning, rewriteHelperM, e: ([+    x1/3    x2/3    4*y]<-4)
+lhs: (4*y)
+rhs: [&&    -(x1/3)    -(x2/3)    -4]
+end, rewriteHelperM, e: ((4*y)<[+    -(x1/3)    -(x2/3)    -4])
+sameTypeSet: (((5*y)<((-(x1/2))+-3))&&((4*y)<[+    -(x1/3)    -(x2/3)    -4]))
+VecElemInitInt beginning t: ((5*y)<((-(x1/2))+-3))
+divMultTransInt begin: t ((5*y)<=(((-(x1/2))+-3)-1))
+divMultTransInt end: t (y<=(((-(x1/2))+-3)-1))
+VecElemInitInt after t: ((5*y)<=(((-(x1/2))+-3)-1))
+
+VecElemInitInt beginning t: ((4*y)<[+    -(x1/3)    -(x2/3)    -4])
+divMultTransInt begin: t ((4*y)<=([+    -(x1/3)    -(x2/3)    -4]-1))
+divMultTransInt end: t (y<=([+    -(x1/3)    -(x2/3)    -4]-1))
+VecElemInitInt after t: ((4*y)<=([+    -(x1/3)    -(x2/3)    -4]-1))
+
+Before mixQE: (exists (INT) ((((x1/2)+3)<((-5)*y))&&((((x1/3)+(x2/3))+4)<((-4)*y))))
+After mixQE: true
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: true
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: valid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+ skolMaps [ 0, y ] = (((5*y)<((-(x1/2))+-3))&&((4*y)<[+    -(x1/3)    -(x2/3)    -4]))
+Printing original SMT formula:
+(((5*y)<((-(x1/2))+-3))&&((4*y)<[+    -(x1/3)    -(x2/3)    -4]))
+Expressions after oldNormalizationGen(): ((y<=((((-(x1/2))+-3)-1)/5))&&(y<=(([+    -(x1/3)    -(x2/3)    -4]-1)/4)))
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  ((y<=((((-(x1/2))+-3)-1)/5))&&(y<=(([+    -(x1/3)    -(x2/3)    -4]-1)/4)))
+beginning, rewriteHelperM, e: (y<=((((-(x1/2))+-3)-1)/5))
+lhs: y
+rhs: ((((-(x1/2))+-3)-1)/5)
+end, rewriteHelperM, e: (y<=((((-(x1/2))+-3)-1)/5))
+beginning, rewriteHelperM, e: (y<=(([+    -(x1/3)    -(x2/3)    -4]-1)/4))
+lhs: y
+rhs: (([+    -(x1/3)    -(x2/3)    -4]-1)/4)
+end, rewriteHelperM, e: (y<=(([+    -(x1/3)    -(x2/3)    -4]-1)/4))
+
+extracted skolem:
+(assert (= y (let ((a!1 (div (+ (- (div x1 2)) (- 3) (- 1)) 5))
+      (a!2 (div (+ (- (div x1 3)) (- (div x2 3)) (- 4) (- 1)) 4)))
+  (+ (ite (> a!1 (+ a!2 0)) a!2 a!1) 0))))
+Sanity check: 1
+
+
+Running: ./multEx1.smt2
+before mixQEMethod pr: (((((-3)*x1)+(5*x2))<(3*y))&&(((-3)*x1)!=(3*y)))
+beginning, rewriteHelperM, e: ([+    5*x2    -3*x1    -3*y]<0)
+lhs: (-3*y)
+rhs: ((-5*x2)&&(3*x1))
+end, rewriteHelperM, e: ((-3*y)<((-5*x2)+(3*x1)))
+beginning, rewriteHelperM, e: (((-3*x1)+(-3*y))>0)
+lhs: (-3*y)
+rhs: (3*x1)
+end, rewriteHelperM, e: ((-3*y)>(3*x1))
+sameTypeSet: (((-3*y)<((-5*x2)+(3*x1)))&&((-3*y)>(3*x1)))
+VecElemInitInt beginning t: ((-3*y)<((-5*x2)+(3*x1)))
+divMultTransInt begin: t ((3*y)>((-1)*((-5*x2)+(3*x1))))
+divMultTransInt end: t (y>((-1)*((-5*x2)+(3*x1))))
+VecElemInitInt after t: ((3*y)>((-1)*((-5*x2)+(3*x1))))
+
+VecElemInitInt beginning t: ((-3*y)>(3*x1))
+divMultTransInt begin: t ((3*y)<=(((-1)*(3*x1))-1))
+divMultTransInt end: t (y<=(((-1)*(3*x1))-1))
+VecElemInitInt after t: ((3*y)<=(((-1)*(3*x1))-1))
+
+Before mixQE: (exists (INT) (((((-3)*x1)+(5*x2))<(3*y))&&(((-3)*x1)>(3*y))))
+After mixQE: (((1*((-1)*((-5*x2)+(3*x1))))<(1*(((-1)*(3*x1))-1)))&&(((1*((-1)*((-5*x2)+(3*x1))))/3)<((1*(((-1)*(3*x1))-1))/3)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((-1*((-5*x2)+(3*x1)))<((-3*x1)+-1))&&(((-1*((-5*x2)+(3*x1)))/3)<((((-3*x1)-1)/3)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+before mixQEMethod pr: (((((-3)*x1)+(5*x2))<(3*y))&&(((-3)*x1)!=(3*y)))
+beginning, rewriteHelperM, e: ([+    5*x2    -3*x1    -3*y]<0)
+lhs: (-3*y)
+rhs: ((-5*x2)&&(3*x1))
+end, rewriteHelperM, e: ((-3*y)<((-5*x2)+(3*x1)))
+beginning, rewriteHelperM, e: (((-3*x1)+(-3*y))<0)
+lhs: (-3*y)
+rhs: (3*x1)
+end, rewriteHelperM, e: ((-3*y)<(3*x1))
+sameTypeSet: (((-3*y)<((-5*x2)+(3*x1)))&&((-3*y)<(3*x1)))
+VecElemInitInt beginning t: ((-3*y)<((-5*x2)+(3*x1)))
+divMultTransInt begin: t ((3*y)>((-1)*((-5*x2)+(3*x1))))
+divMultTransInt end: t (y>((-1)*((-5*x2)+(3*x1))))
+VecElemInitInt after t: ((3*y)>((-1)*((-5*x2)+(3*x1))))
+
+VecElemInitInt beginning t: ((-3*y)<(3*x1))
+divMultTransInt begin: t ((3*y)>((-1)*(3*x1)))
+divMultTransInt end: t (y>((-1)*(3*x1)))
+VecElemInitInt after t: ((3*y)>((-1)*(3*x1)))
+
+Before mixQE: (exists (INT) (((((-3)*x1)+(5*x2))<(3*y))&&(((-3)*x1)<(3*y))))
+After mixQE: true
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: true
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 2; Result: valid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+ skolMaps [ 0, y ] = (((-3*y)<((-5*x2)+(3*x1)))&&((-3*y)>(3*x1)))
+ skolMaps [ 1, y ] = (((-3*y)<((-5*x2)+(3*x1)))&&((-3*y)<(3*x1)))
+Printing original SMT formula:
+(((-3*y)<((-5*x2)+(3*x1)))&&((-3*y)>(3*x1)))
+Expressions after oldNormalizationGen(): ((y>(((-1)*((-5*x2)+(3*x1)))/3))&&(y<=((((-1)*(3*x1))-1)/3)))
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  ((y>(((-1)*((-5*x2)+(3*x1)))/3))&&(y<=((((-1)*(3*x1))-1)/3)))
+beginning, rewriteHelperM, e: (y>(((-1)*((-5*x2)+(3*x1)))/3))
+lhs: y
+rhs: (((-1)*((-5*x2)+(3*x1)))/3)
+end, rewriteHelperM, e: (y>(((-1)*((-5*x2)+(3*x1)))/3))
+beginning, rewriteHelperM, e: (y<=((((-1)*(3*x1))-1)/3))
+lhs: y
+rhs: ((((-1)*(3*x1))-1)/3)
+end, rewriteHelperM, e: (y<=((((-1)*(3*x1))-1)/3))
+Printing original SMT formula:
+(((-3*y)<((-5*x2)+(3*x1)))&&((-3*y)<(3*x1)))
+Expressions after oldNormalizationGen(): ((y>(((-1)*((-5*x2)+(3*x1)))/3))&&(y>(((-1)*(3*x1))/3)))
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  ((y>(((-1)*((-5*x2)+(3*x1)))/3))&&(y>(((-1)*(3*x1))/3)))
+beginning, rewriteHelperM, e: (y>(((-1)*((-5*x2)+(3*x1)))/3))
+lhs: y
+rhs: (((-1)*((-5*x2)+(3*x1)))/3)
+end, rewriteHelperM, e: (y>(((-1)*((-5*x2)+(3*x1)))/3))
+beginning, rewriteHelperM, e: (y>(((-1)*(3*x1))/3))
+lhs: y
+rhs: (((-1)*(3*x1))/3)
+end, rewriteHelperM, e: (y>(((-1)*(3*x1))/3))
+
+extracted skolem:
+(assert (= y (let ((a!1 (div (* (- 1) (+ (* (- 5) x2) (* 3 x1))) 3)))
+(let ((a!2 (< a!1 (+ (div (* (- 3) x1) 3) 0))))
+  (+ (ite a!2 (div (* (- 3) x1) 3) a!1) 1)))))
+Sanity check: 1
+
+
+Running: ./multEx10.smt2
+before mixQEMethod pr: ((((((-4)*x1)+(3*x2))+3)>(4*y))&&(((((-3)*x1)+((-4)*x2))+3)<=(3*y)))
+beginning, rewriteHelperM, e: ([+    3*x2    -4*x1    -4*y]>-3)
+lhs: (-4*y)
+rhs: [&&    -3*x2    4*x1    -3]
+end, rewriteHelperM, e: ((-4*y)>[+    -3*x2    4*x1    -3])
+beginning, rewriteHelperM, e: ([+    -3*x1    -4*x2    -3*y]<=-3)
+lhs: (-3*y)
+rhs: [&&    3*x1    4*x2    -3]
+end, rewriteHelperM, e: ((-3*y)<=[+    3*x1    4*x2    -3])
+sameTypeSet: (((-4*y)>[+    -3*x2    4*x1    -3])&&((-3*y)<=[+    3*x1    4*x2    -3]))
+VecElemInitInt beginning t: ((-4*y)>[+    -3*x2    4*x1    -3])
+divMultTransInt begin: t ((4*y)<=(((-1)*[+    -3*x2    4*x1    -3])-1))
+divMultTransInt end: t (y<=(((-1)*[+    -3*x2    4*x1    -3])-1))
+VecElemInitInt after t: ((4*y)<=(((-1)*[+    -3*x2    4*x1    -3])-1))
+
+VecElemInitInt beginning t: ((-3*y)<=[+    3*x1    4*x2    -3])
+divMultTransInt begin: t ((3*y)>(((-1)*[+    3*x1    4*x2    -3])-1))
+divMultTransInt end: t (y>(((-1)*[+    3*x1    4*x2    -3])-1))
+VecElemInitInt after t: ((3*y)>(((-1)*[+    3*x1    4*x2    -3])-1))
+
+Before mixQE: (exists (INT) ((((((-4)*x1)+(3*x2))+3)>(4*y))&&(((((-3)*x1)+((-4)*x2))+3)<=(3*y))))
+After mixQE: (((4*(((-1)*[+    3*x1    4*x2    -3])-1))<(3*(((-1)*[+    -3*x2    4*x1    -3])-1)))&&(((4*(((-1)*[+    3*x1    4*x2    -3])-1))/12)<((3*(((-1)*[+    -3*x2    4*x1    -3])-1))/12)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((4*((-1*[+    3*x1    4*x2    -3])-1))<((3*((-1*[+    -3*x2    4*x1    -3])-1))+0))&&(((4*((-1*[+    3*x1    4*x2    -3])-1))/12)<(((3*((-1*[+    -3*x2    4*x1    -3])-1))/12)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 0
+
+valid subset:
+(assert (and (< (let ((a!1 (- (* (- 1) (+ (* 3 x1) (* 4 x2) (- 3))) 1)))
+  (div (* 4 a!1) 12)) (let ((a!1 (- (* (- 1) (+ (* (- 3) x2) (* 4 x1) (- 3))) 1)))
+  (+ (div (* 3 a!1) 12) 0))) (< (let ((a!1 (- (* (- 1) (+ (* 3 x1) (* 4 x2) (- 3))) 1)))
+  (* 4 a!1)) (+ (* 3 (- 1) (- 3) x2) (* 3 (- 1) 4 x1) (* 3 (- 1) (- 3)) (* 3 (- 1)) 0))))
+
+
+Running: ./multEx2.smt2
+before mixQEMethod pr: (((3*x1)>=((-4)*y))&&(((-5)*y)>(((-3)*x1)+((-4)*x2))))
+beginning, rewriteHelperM, e: (((3*x1)+(4*y))>=0)
+lhs: (4*y)
+rhs: (-3*x1)
+end, rewriteHelperM, e: ((4*y)>=(-3*x1))
+beginning, rewriteHelperM, e: ([+    3*x1    -5*y    4*x2]>0)
+lhs: (-5*y)
+rhs: ((-3*x1)&&(-4*x2))
+end, rewriteHelperM, e: ((-5*y)>((-3*x1)+(-4*x2)))
+sameTypeSet: (((4*y)>=(-3*x1))&&((-5*y)>((-3*x1)+(-4*x2))))
+VecElemInitInt beginning t: ((4*y)>=(-3*x1))
+divMultTransInt begin: t ((4*y)>((-3*x1)-1))
+divMultTransInt end: t (y>((-3*x1)-1))
+VecElemInitInt after t: ((4*y)>((-3*x1)-1))
+
+VecElemInitInt beginning t: ((-5*y)>((-3*x1)+(-4*x2)))
+divMultTransInt begin: t ((5*y)<=(((-1)*((-3*x1)+(-4*x2)))-1))
+divMultTransInt end: t (y<=(((-1)*((-3*x1)+(-4*x2)))-1))
+VecElemInitInt after t: ((5*y)<=(((-1)*((-3*x1)+(-4*x2)))-1))
+
+Before mixQE: (exists (INT) (((3*x1)>=((-4)*y))&&(((-5)*y)>(((-3)*x1)+((-4)*x2)))))
+After mixQE: (((5*((-3*x1)-1))<(4*(((-1)*((-3*x1)+(-4*x2)))-1)))&&(((5*((-3*x1)-1))/20)<((4*(((-1)*((-3*x1)+(-4*x2)))-1))/20)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((5*((-3*x1)-1))<((4*((-1*((-3*x1)+(-4*x2)))-1))+0))&&(((5*((-3*x1)-1))/20)<(((4*((-1*((-3*x1)+(-4*x2)))-1))/20)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 0
+
+valid subset:
+(assert (and (< (div (* 5 (- (* (- 3) x1) 1)) 20) (let ((a!1 (- (* (- 1) (+ (* (- 3) x1) (* (- 4) x2))) 1)))
+  (+ (div (* 4 a!1) 20) 0))) (< (* 5 (- (* (- 3) x1) 1)) (+ (* 4 (- 1) (- 3) x1) (* 4 (- 1) (- 4) x2) (* 4 (- 1)) 0))))
+
+
+Running: ./multEx3.smt2
+before mixQEMethod pr: (((5*y)=(5*x1))&&((((4*x1)+(3*x2))+4)!=((-5)*y)))
+beginning, rewriteHelperM, e: (((5*y)+(-5*x1))>=0)
+lhs: (5*y)
+rhs: (5*x1)
+end, rewriteHelperM, e: ((5*y)>=(5*x1))
+beginning, rewriteHelperM, e: (((5*y)+(-5*x1))<=0)
+lhs: (5*y)
+rhs: (5*x1)
+end, rewriteHelperM, e: ((5*y)<=(5*x1))
+beginning, rewriteHelperM, e: ([+    4*x1    3*x2    5*y]>-4)
+lhs: (5*y)
+rhs: [&&    -4*x1    -3*x2    -4]
+end, rewriteHelperM, e: ((5*y)>[+    -4*x1    -3*x2    -4])
+sameTypeSet: [&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (5*y)>[+    -4*x1    -3*x2    -4]]
+VecElemInitInt beginning t: ((5*y)>=(5*x1))
+divMultTransInt begin: t ((5*y)>((5*x1)-1))
+divMultTransInt end: t (y>((5*x1)-1))
+VecElemInitInt after t: ((5*y)>((5*x1)-1))
+
+VecElemInitInt beginning t: ((5*y)<=(5*x1))
+divMultTransInt begin: t ((5*y)<=(5*x1))
+divMultTransInt end: t (y<=(5*x1))
+VecElemInitInt after t: ((5*y)<=(5*x1))
+
+VecElemInitInt beginning t: ((5*y)>[+    -4*x1    -3*x2    -4])
+divMultTransInt begin: t ((5*y)>[+    -4*x1    -3*x2    -4])
+divMultTransInt end: t (y>[+    -4*x1    -3*x2    -4])
+VecElemInitInt after t: ((5*y)>[+    -4*x1    -3*x2    -4])
+
+Before mixQE: (exists (INT) [&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (((4*x1)+(3*x2))+4)>((-5)*y)])
+After mixQE: [&&    (1*((5*x1)-1))<(1*(5*x1))    ((1*((5*x1)-1))/5)<((1*(5*x1))/5)    (1*[+    -4*x1    -3*x2    -4])<(1*(5*x1))    ((1*[+    -4*x1    -3*x2    -4])/5)<((1*(5*x1))/5)]
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: [&&    0<1    (((5*x1)-1)/5)<(((5*x1)/5)+0)    ((-3*x2)+(-4*x1))<((5*x1)+4)    ([+    -3*x2    -4*x1    -4]/5)<(((5*x1)/5)+0)]
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+before mixQEMethod pr: (((5*y)=(5*x1))&&((((4*x1)+(3*x2))+4)!=((-5)*y)))
+beginning, rewriteHelperM, e: (((5*y)+(-5*x1))>=0)
+lhs: (5*y)
+rhs: (5*x1)
+end, rewriteHelperM, e: ((5*y)>=(5*x1))
+beginning, rewriteHelperM, e: (((5*y)+(-5*x1))<=0)
+lhs: (5*y)
+rhs: (5*x1)
+end, rewriteHelperM, e: ((5*y)<=(5*x1))
+beginning, rewriteHelperM, e: ([+    4*x1    3*x2    5*y]<-4)
+lhs: (5*y)
+rhs: [&&    -4*x1    -3*x2    -4]
+end, rewriteHelperM, e: ((5*y)<[+    -4*x1    -3*x2    -4])
+sameTypeSet: [&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (5*y)<[+    -4*x1    -3*x2    -4]]
+VecElemInitInt beginning t: ((5*y)>=(5*x1))
+divMultTransInt begin: t ((5*y)>((5*x1)-1))
+divMultTransInt end: t (y>((5*x1)-1))
+VecElemInitInt after t: ((5*y)>((5*x1)-1))
+
+VecElemInitInt beginning t: ((5*y)<=(5*x1))
+divMultTransInt begin: t ((5*y)<=(5*x1))
+divMultTransInt end: t (y<=(5*x1))
+VecElemInitInt after t: ((5*y)<=(5*x1))
+
+VecElemInitInt beginning t: ((5*y)<[+    -4*x1    -3*x2    -4])
+divMultTransInt begin: t ((5*y)<=([+    -4*x1    -3*x2    -4]-1))
+divMultTransInt end: t (y<=([+    -4*x1    -3*x2    -4]-1))
+VecElemInitInt after t: ((5*y)<=([+    -4*x1    -3*x2    -4]-1))
+
+Before mixQE: (exists (INT) [&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (((4*x1)+(3*x2))+4)<((-5)*y)])
+After mixQE: [&&    (1*((5*x1)-1))<(1*(5*x1))    ((1*((5*x1)-1))/5)<((1*(5*x1))/5)    (1*((5*x1)-1))<(1*([+    -4*x1    -3*x2    -4]-1))    ((1*((5*x1)-1))/5)<((1*([+    -4*x1    -3*x2    -4]-1))/5)]
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: [&&    0<1    (((5*x1)-1)/5)<(((5*x1)/5)+0)    (5*x1)<[+    -3*x2    -4*x1    -4]    (((5*x1)-1)/5)<(([+    -3*x2    -4*x1    -4    -1]/5)+0)]
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 2; Result: valid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+ skolMaps [ 0, y ] = [&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (5*y)>[+    -4*x1    -3*x2    -4]]
+ skolMaps [ 1, y ] = [&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (5*y)<[+    -4*x1    -3*x2    -4]]
+Printing original SMT formula:
+[&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (5*y)<[+    -4*x1    -3*x2    -4]]
+Expressions after oldNormalizationGen(): [&&    y>(((5*x1)-1)/5)    y<=((5*x1)/5)    y<=(([+    -4*x1    -3*x2    -4]-1)/5)]
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  [&&    y>(((5*x1)-1)/5)    y<=((5*x1)/5)    y<=(([+    -4*x1    -3*x2    -4]-1)/5)]
+beginning, rewriteHelperM, e: (y>(((5*x1)-1)/5))
+lhs: y
+rhs: (((5*x1)-1)/5)
+end, rewriteHelperM, e: (y>(((5*x1)-1)/5))
+beginning, rewriteHelperM, e: (y<=((5*x1)/5))
+lhs: y
+rhs: ((5*x1)/5)
+end, rewriteHelperM, e: (y<=((5*x1)/5))
+beginning, rewriteHelperM, e: (y<=(([+    -4*x1    -3*x2    -4]-1)/5))
+lhs: y
+rhs: (([+    -4*x1    -3*x2    -4]-1)/5)
+end, rewriteHelperM, e: (y<=(([+    -4*x1    -3*x2    -4]-1)/5))
+Printing original SMT formula:
+[&&    (5*y)>=(5*x1)    (5*y)<=(5*x1)    (5*y)>[+    -4*x1    -3*x2    -4]]
+Expressions after oldNormalizationGen(): [&&    y>(((5*x1)-1)/5)    y<=((5*x1)/5)    y>([+    -4*x1    -3*x2    -4]/5)]
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  [&&    y>(((5*x1)-1)/5)    y<=((5*x1)/5)    y>([+    -4*x1    -3*x2    -4]/5)]
+beginning, rewriteHelperM, e: (y>(((5*x1)-1)/5))
+lhs: y
+rhs: (((5*x1)-1)/5)
+end, rewriteHelperM, e: (y>(((5*x1)-1)/5))
+beginning, rewriteHelperM, e: (y<=((5*x1)/5))
+lhs: y
+rhs: ((5*x1)/5)
+end, rewriteHelperM, e: (y<=((5*x1)/5))
+beginning, rewriteHelperM, e: (y>([+    -4*x1    -3*x2    -4]/5))
+lhs: y
+rhs: ([+    -4*x1    -3*x2    -4]/5)
+end, rewriteHelperM, e: (y>([+    -4*x1    -3*x2    -4]/5))
+
+extracted skolem:
+(assert (ite (and (< (div (- (* 5 x1) 1) 5) (+ (div (* 5 x1) 5) 0)) (< (+ (* (- 3) x2) (* (- 4) x1)) (+ (* 5 x1) 4)) (< (div (+ (* (- 3) x2) (* (- 4) x1) (- 4)) 5) (+ (div (* 5 x1) 5) 0))) (= y (let ((a!1 (div (+ (* (- 3) x2) (* (- 4) x1) (- 4)) 5)))
+(let ((a!2 (< (div (- (* 5 x1) 1) 5) (+ a!1 0))))
+(let ((a!3 (ite a!2 a!1 (div (- (* 5 x1) 1) 5))))
+  (+ a!3 1))))) (= y (+ (div (- (* 5 x1) 1) 5) 1))))
+Sanity check: 1
+
+
+Running: ./multEx4.smt2
+before mixQEMethod pr: (((3*y)>=((((-4)*x1)+(5*x2))+1))&&((((5*x1)+((-5)*x2))+4)>((-3)*y)))
+beginning, rewriteHelperM, e: ([+    3*y    -5*x2    4*x1]>=1)
+lhs: (3*y)
+rhs: [&&    5*x2    -4*x1    1]
+end, rewriteHelperM, e: ((3*y)>=[+    5*x2    -4*x1    1])
+beginning, rewriteHelperM, e: ([+    3*y    5*x1    -5*x2]>-4)
+lhs: (3*y)
+rhs: [&&    -5*x1    5*x2    -4]
+end, rewriteHelperM, e: ((3*y)>[+    -5*x1    5*x2    -4])
+sameTypeSet: (((3*y)>=[+    5*x2    -4*x1    1])&&((3*y)>[+    -5*x1    5*x2    -4]))
+VecElemInitInt beginning t: ((3*y)>=[+    5*x2    -4*x1    1])
+divMultTransInt begin: t ((3*y)>([+    5*x2    -4*x1    1]-1))
+divMultTransInt end: t (y>([+    5*x2    -4*x1    1]-1))
+VecElemInitInt after t: ((3*y)>([+    5*x2    -4*x1    1]-1))
+
+VecElemInitInt beginning t: ((3*y)>[+    -5*x1    5*x2    -4])
+divMultTransInt begin: t ((3*y)>[+    -5*x1    5*x2    -4])
+divMultTransInt end: t (y>[+    -5*x1    5*x2    -4])
+VecElemInitInt after t: ((3*y)>[+    -5*x1    5*x2    -4])
+
+Before mixQE: (exists (INT) (((3*y)>=((((-4)*x1)+(5*x2))+1))&&((((5*x1)+((-5)*x2))+4)>((-3)*y))))
+After mixQE: true
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: true
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: valid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+ skolMaps [ 0, y ] = (((3*y)>=[+    5*x2    -4*x1    1])&&((3*y)>[+    -5*x1    5*x2    -4]))
+Printing original SMT formula:
+(((3*y)>=[+    5*x2    -4*x1    1])&&((3*y)>[+    -5*x1    5*x2    -4]))
+Expressions after oldNormalizationGen(): ((y>(([+    5*x2    -4*x1    1]-1)/3))&&(y>([+    -5*x1    5*x2    -4]/3)))
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  ((y>(([+    5*x2    -4*x1    1]-1)/3))&&(y>([+    -5*x1    5*x2    -4]/3)))
+beginning, rewriteHelperM, e: (y>(([+    5*x2    -4*x1    1]-1)/3))
+lhs: y
+rhs: (([+    5*x2    -4*x1    1]-1)/3)
+end, rewriteHelperM, e: (y>(([+    5*x2    -4*x1    1]-1)/3))
+beginning, rewriteHelperM, e: (y>([+    -5*x1    5*x2    -4]/3))
+lhs: y
+rhs: ([+    -5*x1    5*x2    -4]/3)
+end, rewriteHelperM, e: (y>([+    -5*x1    5*x2    -4]/3))
+
+extracted skolem:
+(assert (= y (let ((a!1 (div (+ (* 5 x2) (* (- 5) x1) (- 4)) 3)))
+(let ((a!2 (< (div (+ (* 5 x2) (* (- 4) x1)) 3) (+ a!1 0))))
+(let ((a!3 (ite a!2 a!1 (div (+ (* 5 x2) (* (- 4) x1)) 3))))
+  (+ a!3 1))))))
+Sanity check: 1
+
+
+Running: ./multEx5.smt2
+before mixQEMethod pr: (((((-5)*x1)+((-3)*x2))>=(4*y))&&((4*y)>=(3*x1)))
+beginning, rewriteHelperM, e: ([+    -5*x1    -3*x2    -4*y]>=0)
+lhs: (-4*y)
+rhs: ((5*x1)&&(3*x2))
+end, rewriteHelperM, e: ((-4*y)>=((5*x1)+(3*x2)))
+beginning, rewriteHelperM, e: (((4*y)+(-3*x1))>=0)
+lhs: (4*y)
+rhs: (3*x1)
+end, rewriteHelperM, e: ((4*y)>=(3*x1))
+sameTypeSet: (((4*y)>=(3*x1))&&((-4*y)>=((5*x1)+(3*x2))))
+VecElemInitInt beginning t: ((4*y)>=(3*x1))
+divMultTransInt begin: t ((4*y)>((3*x1)-1))
+divMultTransInt end: t (y>((3*x1)-1))
+VecElemInitInt after t: ((4*y)>((3*x1)-1))
+
+VecElemInitInt beginning t: ((-4*y)>=((5*x1)+(3*x2)))
+divMultTransInt begin: t ((4*y)<=((-1)*((5*x1)+(3*x2))))
+divMultTransInt end: t (y<=((-1)*((5*x1)+(3*x2))))
+VecElemInitInt after t: ((4*y)<=((-1)*((5*x1)+(3*x2))))
+
+Before mixQE: (exists (INT) (((((-5)*x1)+((-3)*x2))>=(4*y))&&((4*y)>=(3*x1))))
+After mixQE: (((1*((3*x1)-1))<(1*((-1)*((5*x1)+(3*x2)))))&&(((1*((3*x1)-1))/4)<((1*((-1)*((5*x1)+(3*x2))))/4)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((3*x1)<((-1*((3*x2)+(5*x1)))+1))&&((((3*x1)-1)/4)<(((-1*((3*x2)+(5*x1)))/4)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 0
+
+valid subset:
+(assert (and (< (div (- (* 3 x1) 1) 4) (let ((a!1 (div (* (- 1) (+ (* 3 x2) (* 5 x1))) 4)))
+  (+ a!1 0))) (< (* 3 x1) (+ (* (- 1) 3 x2) (* (- 1) 5 x1) 1))))
+
+
+Running: ./multEx6.smt2
+before mixQEMethod pr: ((((-4)*y)<=((4*x1)+((-5)*x2)))&&(((3*x1)+((-4)*x2))!=((-5)*y)))
+beginning, rewriteHelperM, e: ([+    -4*y    -4*x1    5*x2]<=0)
+lhs: (-4*y)
+rhs: ((4*x1)&&(-5*x2))
+end, rewriteHelperM, e: ((-4*y)<=((4*x1)+(-5*x2)))
+beginning, rewriteHelperM, e: ([+    3*x1    -4*x2    5*y]<0)
+lhs: (5*y)
+rhs: ((-3*x1)&&(4*x2))
+end, rewriteHelperM, e: ((5*y)<((-3*x1)+(4*x2)))
+sameTypeSet: (((-4*y)<=((4*x1)+(-5*x2)))&&((5*y)<((-3*x1)+(4*x2))))
+VecElemInitInt beginning t: ((-4*y)<=((4*x1)+(-5*x2)))
+divMultTransInt begin: t ((4*y)>(((-1)*((4*x1)+(-5*x2)))-1))
+divMultTransInt end: t (y>(((-1)*((4*x1)+(-5*x2)))-1))
+VecElemInitInt after t: ((4*y)>(((-1)*((4*x1)+(-5*x2)))-1))
+
+VecElemInitInt beginning t: ((5*y)<((-3*x1)+(4*x2)))
+divMultTransInt begin: t ((5*y)<=(((-3*x1)+(4*x2))-1))
+divMultTransInt end: t (y<=(((-3*x1)+(4*x2))-1))
+VecElemInitInt after t: ((5*y)<=(((-3*x1)+(4*x2))-1))
+
+Before mixQE: (exists (INT) ((((-4)*y)<=((4*x1)+((-5)*x2)))&&(((3*x1)+((-4)*x2))<((-5)*y))))
+After mixQE: (((5*(((-1)*((4*x1)+(-5*x2)))-1))<(4*(((-3*x1)+(4*x2))-1)))&&(((5*(((-1)*((4*x1)+(-5*x2)))-1))/20)<((4*(((-3*x1)+(4*x2))-1))/20)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((5*((-1*((4*x1)+(-5*x2)))-1))<((4*[+    -3*x1    4*x2    -1])+0))&&(((5*((-1*((4*x1)+(-5*x2)))-1))/20)<(((4*[+    -3*x1    4*x2    -1])/20)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+before mixQEMethod pr: ((((-4)*y)<=((4*x1)+((-5)*x2)))&&(((3*x1)+((-4)*x2))!=((-5)*y)))
+beginning, rewriteHelperM, e: ([+    -4*y    -4*x1    5*x2]<=0)
+lhs: (-4*y)
+rhs: ((4*x1)&&(-5*x2))
+end, rewriteHelperM, e: ((-4*y)<=((4*x1)+(-5*x2)))
+beginning, rewriteHelperM, e: ([+    3*x1    5*y    -4*x2]>0)
+lhs: (5*y)
+rhs: ((-3*x1)&&(4*x2))
+end, rewriteHelperM, e: ((5*y)>((-3*x1)+(4*x2)))
+sameTypeSet: (((-4*y)<=((4*x1)+(-5*x2)))&&((5*y)>((-3*x1)+(4*x2))))
+VecElemInitInt beginning t: ((-4*y)<=((4*x1)+(-5*x2)))
+divMultTransInt begin: t ((4*y)>(((-1)*((4*x1)+(-5*x2)))-1))
+divMultTransInt end: t (y>(((-1)*((4*x1)+(-5*x2)))-1))
+VecElemInitInt after t: ((4*y)>(((-1)*((4*x1)+(-5*x2)))-1))
+
+VecElemInitInt beginning t: ((5*y)>((-3*x1)+(4*x2)))
+divMultTransInt begin: t ((5*y)>((-3*x1)+(4*x2)))
+divMultTransInt end: t (y>((-3*x1)+(4*x2)))
+VecElemInitInt after t: ((5*y)>((-3*x1)+(4*x2)))
+
+Before mixQE: (exists (INT) ((((-4)*y)<=((4*x1)+((-5)*x2)))&&(((3*x1)+((-4)*x2))>((-5)*y))))
+After mixQE: true
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: true
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 2; Result: valid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+ skolMaps [ 0, y ] = (((-4*y)<=((4*x1)+(-5*x2)))&&((5*y)<((-3*x1)+(4*x2))))
+ skolMaps [ 1, y ] = (((-4*y)<=((4*x1)+(-5*x2)))&&((5*y)>((-3*x1)+(4*x2))))
+Printing original SMT formula:
+(((-4*y)<=((4*x1)+(-5*x2)))&&((5*y)<((-3*x1)+(4*x2))))
+Expressions after oldNormalizationGen(): ((y>((((-1)*((4*x1)+(-5*x2)))-1)/4))&&(y<=((((-3*x1)+(4*x2))-1)/5)))
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  ((y>((((-1)*((4*x1)+(-5*x2)))-1)/4))&&(y<=((((-3*x1)+(4*x2))-1)/5)))
+beginning, rewriteHelperM, e: (y>((((-1)*((4*x1)+(-5*x2)))-1)/4))
+lhs: y
+rhs: ((((-1)*((4*x1)+(-5*x2)))-1)/4)
+end, rewriteHelperM, e: (y>((((-1)*((4*x1)+(-5*x2)))-1)/4))
+beginning, rewriteHelperM, e: (y<=((((-3*x1)+(4*x2))-1)/5))
+lhs: y
+rhs: ((((-3*x1)+(4*x2))-1)/5)
+end, rewriteHelperM, e: (y<=((((-3*x1)+(4*x2))-1)/5))
+Printing original SMT formula:
+(((-4*y)<=((4*x1)+(-5*x2)))&&((5*y)>((-3*x1)+(4*x2))))
+Expressions after oldNormalizationGen(): ((y>((((-1)*((4*x1)+(-5*x2)))-1)/4))&&(y>(((-3*x1)+(4*x2))/5)))
+oldNormalizationGen check, beginning equivalent to result: 1
+getAssignmentForVar y in:  ((y>((((-1)*((4*x1)+(-5*x2)))-1)/4))&&(y>(((-3*x1)+(4*x2))/5)))
+beginning, rewriteHelperM, e: (y>((((-1)*((4*x1)+(-5*x2)))-1)/4))
+lhs: y
+rhs: ((((-1)*((4*x1)+(-5*x2)))-1)/4)
+end, rewriteHelperM, e: (y>((((-1)*((4*x1)+(-5*x2)))-1)/4))
+beginning, rewriteHelperM, e: (y>(((-3*x1)+(4*x2))/5))
+lhs: y
+rhs: (((-3*x1)+(4*x2))/5)
+end, rewriteHelperM, e: (y>(((-3*x1)+(4*x2))/5))
+
+extracted skolem:
+(assert (= y (let ((a!1 (- (* (- 1) (+ (* 4 x1) (* (- 5) x2))) 1))
+      (a!2 (+ (div (+ (* (- 3) x1) (* 4 x2)) 5) 0)))
+(let ((a!3 (ite (< (div a!1 4) a!2)
+                (div (+ (* (- 3) x1) (* 4 x2)) 5)
+                (div a!1 4))))
+  (+ a!3 1)))))
+Sanity check: 1
+
+
+Running: ./multEx7.smt2
+before mixQEMethod pr: (((((-4)*x1)+((-3)*x2))>(4*y))&&(((-5)*y)<=((4*x1)+2)))
+beginning, rewriteHelperM, e: ([+    -4*x1    -3*x2    -4*y]>0)
+lhs: (-4*y)
+rhs: ((4*x1)&&(3*x2))
+end, rewriteHelperM, e: ((-4*y)>((4*x1)+(3*x2)))
+beginning, rewriteHelperM, e: (((-4*x1)+(-5*y))<=2)
+lhs: (-5*y)
+rhs: ((4*x1)&&2)
+end, rewriteHelperM, e: ((-5*y)<=((4*x1)+2))
+sameTypeSet: (((-4*y)>((4*x1)+(3*x2)))&&((-5*y)<=((4*x1)+2)))
+VecElemInitInt beginning t: ((-4*y)>((4*x1)+(3*x2)))
+divMultTransInt begin: t ((4*y)<=(((-1)*((4*x1)+(3*x2)))-1))
+divMultTransInt end: t (y<=(((-1)*((4*x1)+(3*x2)))-1))
+VecElemInitInt after t: ((4*y)<=(((-1)*((4*x1)+(3*x2)))-1))
+
+VecElemInitInt beginning t: ((-5*y)<=((4*x1)+2))
+divMultTransInt begin: t ((5*y)>(((-1)*((4*x1)+2))-1))
+divMultTransInt end: t (y>(((-1)*((4*x1)+2))-1))
+VecElemInitInt after t: ((5*y)>(((-1)*((4*x1)+2))-1))
+
+Before mixQE: (exists (INT) (((((-4)*x1)+((-3)*x2))>(4*y))&&(((-5)*y)<=((4*x1)+2))))
+After mixQE: (((4*(((-1)*((4*x1)+2))-1))<(5*(((-1)*((4*x1)+(3*x2)))-1)))&&(((4*(((-1)*((4*x1)+2))-1))/20)<((5*(((-1)*((4*x1)+(3*x2)))-1))/20)))
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: (((4*((-1*((4*x1)+2))-1))<((5*((-1*((4*x1)+(3*x2)))-1))+0))&&(((4*((-1*((4*x1)+2))-1))/20)<(((5*((-1*((4*x1)+(3*x2)))-1))/20)+0)))
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 0
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 1; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 0
+
+valid subset:
+(assert (and (< (let ((a!1 (- (* (- 1) (+ (* 4 x1) 2)) 1)))
+  (div (* 4 a!1) 20)) (let ((a!1 (- (* (- 1) (+ (* 4 x1) (* 3 x2))) 1)))
+  (+ (div (* 5 a!1) 20) 0))) (< (let ((a!1 (- (* (- 1) (+ (* 4 x1) 2)) 1)))
+  (* 4 a!1)) (+ (* 5 (- 1) 4 x1) (* 5 (- 1) 3 x2) (* 5 (- 1)) 0))))
+
+
+Running: ./multEx8.smt2
+Iter: 0; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 1
+
+valid subset:
+WARNING: Trivial valid subset (equal to False) due to 0 iterations
+(assert false)
+
+
+Running: ./multEx9.smt2
+before mixQEMethod pr: (((4*y)=(((-5)*x1)+(4*x2)))&&((((-4)*x1)+4)!=((-5)*y)))
+beginning, rewriteHelperM, e: ([+    4*y    5*x1    -4*x2]>=0)
+lhs: (4*y)
+rhs: ((-5*x1)&&(4*x2))
+end, rewriteHelperM, e: ((4*y)>=((-5*x1)+(4*x2)))
+beginning, rewriteHelperM, e: ([+    4*y    5*x1    -4*x2]<=0)
+lhs: (4*y)
+rhs: ((-5*x1)&&(4*x2))
+end, rewriteHelperM, e: ((4*y)<=((-5*x1)+(4*x2)))
+beginning, rewriteHelperM, e: (((-4*x1)+(5*y))>-4)
+lhs: (5*y)
+rhs: ((4*x1)&&-4)
+end, rewriteHelperM, e: ((5*y)>((4*x1)+-4))
+sameTypeSet: [&&    (4*y)>=((-5*x1)+(4*x2))    (4*y)<=((-5*x1)+(4*x2))    (5*y)>((4*x1)+-4)]
+VecElemInitInt beginning t: ((4*y)>=((-5*x1)+(4*x2)))
+divMultTransInt begin: t ((4*y)>(((-5*x1)+(4*x2))-1))
+divMultTransInt end: t (y>(((-5*x1)+(4*x2))-1))
+VecElemInitInt after t: ((4*y)>(((-5*x1)+(4*x2))-1))
+
+VecElemInitInt beginning t: ((4*y)<=((-5*x1)+(4*x2)))
+divMultTransInt begin: t ((4*y)<=((-5*x1)+(4*x2)))
+divMultTransInt end: t (y<=((-5*x1)+(4*x2)))
+VecElemInitInt after t: ((4*y)<=((-5*x1)+(4*x2)))
+
+VecElemInitInt beginning t: ((5*y)>((4*x1)+-4))
+divMultTransInt begin: t ((5*y)>((4*x1)+-4))
+divMultTransInt end: t (y>((4*x1)+-4))
+VecElemInitInt after t: ((5*y)>((4*x1)+-4))
+
+Before mixQE: (exists (INT) [&&    (4*y)>=(((-5)*x1)+(4*x2))    (4*y)<=(((-5)*x1)+(4*x2))    (((-4)*x1)+4)>((-5)*y)])
+After mixQE: [&&    (5*(((-5*x1)+(4*x2))-1))<(5*((-5*x1)+(4*x2)))    ((5*(((-5*x1)+(4*x2))-1))/20)<((5*((-5*x1)+(4*x2)))/20)    (4*((4*x1)+-4))<(5*((-5*x1)+(4*x2)))    ((4*((4*x1)+-4))/20)<((5*((-5*x1)+(4*x2)))/20)]
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: [&&    (5*[+    4*x2    -5*x1    -1])<((5*((4*x2)+(-5*x1)))+0)    ((5*[+    4*x2    -5*x1    -1])/20)<(((5*((4*x2)+(-5*x1)))/20)+0)    (4*((4*x1)+-4))<((5*((4*x2)+(-5*x1)))+0)    ((4*((4*x1)+-4))/20)<(((5*((4*x2)+(-5*x1)))/20)+0)]
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+before mixQEMethod pr: (((4*y)=(((-5)*x1)+(4*x2)))&&((((-4)*x1)+4)!=((-5)*y)))
+beginning, rewriteHelperM, e: ([+    4*y    5*x1    -4*x2]>=0)
+lhs: (4*y)
+rhs: ((-5*x1)&&(4*x2))
+end, rewriteHelperM, e: ((4*y)>=((-5*x1)+(4*x2)))
+beginning, rewriteHelperM, e: ([+    4*y    5*x1    -4*x2]<=0)
+lhs: (4*y)
+rhs: ((-5*x1)&&(4*x2))
+end, rewriteHelperM, e: ((4*y)<=((-5*x1)+(4*x2)))
+beginning, rewriteHelperM, e: (((5*y)+(-4*x1))<-4)
+lhs: (5*y)
+rhs: ((4*x1)&&-4)
+end, rewriteHelperM, e: ((5*y)<((4*x1)+-4))
+sameTypeSet: [&&    (4*y)>=((-5*x1)+(4*x2))    (4*y)<=((-5*x1)+(4*x2))    (5*y)<((4*x1)+-4)]
+VecElemInitInt beginning t: ((4*y)>=((-5*x1)+(4*x2)))
+divMultTransInt begin: t ((4*y)>(((-5*x1)+(4*x2))-1))
+divMultTransInt end: t (y>(((-5*x1)+(4*x2))-1))
+VecElemInitInt after t: ((4*y)>(((-5*x1)+(4*x2))-1))
+
+VecElemInitInt beginning t: ((4*y)<=((-5*x1)+(4*x2)))
+divMultTransInt begin: t ((4*y)<=((-5*x1)+(4*x2)))
+divMultTransInt end: t (y<=((-5*x1)+(4*x2)))
+VecElemInitInt after t: ((4*y)<=((-5*x1)+(4*x2)))
+
+VecElemInitInt beginning t: ((5*y)<((4*x1)+-4))
+divMultTransInt begin: t ((5*y)<=(((4*x1)+-4)-1))
+divMultTransInt end: t (y<=(((4*x1)+-4)-1))
+VecElemInitInt after t: ((5*y)<=(((4*x1)+-4)-1))
+
+Before mixQE: (exists (INT) [&&    (4*y)>=(((-5)*x1)+(4*x2))    (4*y)<=(((-5)*x1)+(4*x2))    (((-4)*x1)+4)<((-5)*y)])
+After mixQE: [&&    (5*(((-5*x1)+(4*x2))-1))<(5*((-5*x1)+(4*x2)))    ((5*(((-5*x1)+(4*x2))-1))/20)<((5*((-5*x1)+(4*x2)))/20)    (5*(((-5*x1)+(4*x2))-1))<(4*(((4*x1)+-4)-1))    ((5*(((-5*x1)+(4*x2))-1))/20)<((4*(((4*x1)+-4)-1))/20)]
+mixQE() Equivalence Check: 1
+after mixQEMethod pr: [&&    (5*[+    4*x2    -5*x1    -1])<((5*((4*x2)+(-5*x1)))+0)    ((5*[+    4*x2    -5*x1    -1])/20)<(((5*((4*x2)+(-5*x1)))/20)+0)    (5*[+    4*x2    -5*x1    -1])<((4*[+    4*x1    -4    -1])+0)    ((5*[+    4*x2    -5*x1    -1])/20)<(((4*[+    4*x1    -4    -1])/20)+0)]
+Sanity MBP (1): 1
+Sanity MBP (2): 1
+Checking implications: 
+cur MBP => z3_qe_model_project_skolem: 1
+z3_qe_model_project_skolem => cur MBP: 1
+Iter: 2; Result: invalid
+'exists v. s => t' isEquiv to 'disjunctions of projections': 11
+
+
+
+(model
+)
+Sanity check [model, S-part]: 1
+Sanity check [model, T-part]: 0
+
+valid subset:
+(assert (or (and (< (div (* 5 (+ (* 4 x2) (* (- 5) x1) (- 1))) 20) (let ((a!1 (div (* 5 (+ (* 4 x2) (* (- 5) x1))) 20)))
+  (+ a!1 0))) (< (div (* 4 (+ (* 4 x1) (- 4))) 20) (let ((a!1 (div (* 5 (+ (* 4 x2) (* (- 5) x1))) 20)))
+  (+ a!1 0))) (< (* 5 (+ (* 4 x2) (* (- 5) x1) (- 1))) (+ (* 5 4 x2) (* 5 (- 5) x1) 0)) (< (* 4 (+ (* 4 x1) (- 4))) (+ (* 5 4 x2) (* 5 (- 5) x1) 0))) (and (< (div (* 5 (+ (* 4 x2) (* (- 5) x1) (- 1))) 20) (let ((a!1 (div (* 5 (+ (* 4 x2) (* (- 5) x1))) 20)))
+  (+ a!1 0))) (< (* 5 (+ (* 4 x2) (* (- 5) x1) (- 1))) (+ (* 5 4 x2) (* 5 (- 5) x1) 0)) (< (* 5 (+ (* 4 x2) (* (- 5) x1) (- 1))) (+ (* 4 4 x1) (* 4 (- 5)) 0)) (< (div (* 5 (+ (* 4 x2) (* (- 5) x1) (- 1))) 20) (let ((a!1 (div (* 4 (+ (* 4 x1) (- 5))) 20)))
+  (+ a!1 0))))))
+
+

@@ -264,9 +264,9 @@ namespace ufo
       {
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
-        // outs() << "before mixQEMethod pr: " << pr << endl; // outTest
+        outs() << "before mixQEMethod pr: " << pr << endl; // outTest
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
-        // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
+        outs() << "after mixQEMethod pr: " << pr << endl; //outTest
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
