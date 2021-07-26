@@ -17,8 +17,7 @@ namespace ufo
   Expr multTrans(Expr t, Expr constY);
   Expr revExpr(Expr s);
   Expr negativeCoefCheck(Expr t);
-  Expr vecElemInit(Expr t, Expr constY);
-  bool negCoefNumCheck(Expr lhs);
+  Expr singleExprNormPrep(Expr t, Expr constVar, bool isInt = false);
   Expr convertNegCoefNum(Expr t);
 
   class AeValSolver {
@@ -265,6 +264,7 @@ namespace ufo
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
         outs() << "before mixQEMethod pr: " << pr << endl; // outTest
+        outs() << "oldNorm: " << oldNormalizationGen(getTrueLiterals(pr, m), exp) << endl;
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
         outs() << "after mixQEMethod pr: " << pr << endl; //outTest
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
@@ -821,7 +821,7 @@ namespace ufo
       getConj(s, temp);
       Expr constOne = mkTerm(mpz_class(1), s->getFactory());
       //initializing Expression Vector, ensure y is not on rhs, remove LT & GEQ;
-      for (auto t : temp) sVec.push_back(vecElemInit(t, var));
+      for (auto t : temp) sVec.push_back(singleExprNormPrep(t, var, true));
       // Normalization
       while (true)
       {
@@ -830,65 +830,53 @@ namespace ufo
         while (locIte != sVec.end())
         {
           Expr lhs = (*locIte) -> left(), rhs = (*locIte) -> right(), curExp = (*locIte);
-          if (!contains(curExp, var)) 
-          {
-            outs() << "ERROR: var " << *var << " is not on LHS of " << *curExp << "on the start." << endl;
-            exit(0);
-          } else if (curExp->arity() != 2)
-          {
-            outs() << "ERROR: The expression " << *curExp << "is invalid!" << endl;
+          if (!contains(curExp, var)) outs() << "Error, oldNormalizationGen, curExp doesn't have var: " << *curExp << endl;
+          //MULTIPLICATION TRANSFORMATION
+          if (isOp<MULT>(lhs)) {
+            sVecTemp.push_back(multTrans(curExp, var));
+            sVec.erase(locIte); break;
           }
-          if (lhs->arity() != 1)
+          //DIVISION TRANSFORMATION
+          else if (isOp<IDIV>(lhs))
           {
-            //MULTIPLICATION TRANSFORMATION
-            if (isOp<MULT>(lhs)) sVecTemp.push_back(multTrans(curExp, var));
-            //DIVISION TRANSFORMATION
-            else if (isOp<DIV>(lhs))
-            {
-              Expr lhs = curExp->left(), rhs = curExp->right();
-              Expr alpha = lhs->right(), varSide = lhs->left();
-              if (!contains(varSide, var)) {
-                outs() << "ERROR on divTrans, f(x)/y format not supported." << endl;
-                exit(0);
+            Expr lhs = curExp->left(), rhs = curExp->right();
+            Expr alpha = lhs->right(), varSide = lhs->left();
+            if (!contains(varSide, var)) {
+              outs() << "Error on divTrans, f(x)/y format not supported." << endl;
+              exit(0);
+            }
+            //applying section 4.2, divisibility constraints
+            if (isOpX<EQ>(curExp)) {
+              sVecTemp.push_back(mk<GT>(varSide, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
+              sVecTemp.push_back(mk<LEQ>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+            } else if (isOpX<GT>(curExp)) {
+              sVecTemp.push_back(mk<GT>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+            } else if (isOpX<LEQ>(curExp)) {
+              sVecTemp.push_back(mk<LEQ>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
+            } else if (isOpX<NEQ>(curExp)) {
+              int i = -1;
+              if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
+              else outs() << "Issue with NEQ expression, no alpha found." << *curExp << endl;
+              while (i >= 0)
+              {
+                sVecTemp.push_back(mk<NEQ>(varSide, i != 0 ? //Ensure 0 is not added to expression
+                  mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
+                  mk<MULT>(alpha, rhs)));
+                --i;
               }
-              //applying section 4.2, divisibility constraints
-              if (isOpX<EQ>(curExp)) {
-                sVecTemp.push_back(mk<GT>(varSide, mk<MINUS>(mk<MULT>(alpha, rhs), constOne)));
-                sVecTemp.push_back(mk<LEQ>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-              } else if (isOpX<GT>(curExp)) {
-                sVecTemp.push_back(mk<GT>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-              } else if (isOpX<LEQ>(curExp)) {
-                sVecTemp.push_back(mk<LEQ>(varSide, mk<MINUS>(mk<PLUS>(mk<MULT>(alpha, rhs), alpha), constOne)));
-              } else if (isOpX<NEQ>(curExp)) {
-                int i = -1;
-                if (isOpX<MPZ>(alpha)) i = lexical_cast<int>(*(alpha)) - 1;
-                else outs() << "Issue with NEQ expression, no alpha found." << *curExp << endl;
-                while (i >= 0)
-                {
-                  sVecTemp.push_back(mk<NEQ>(varSide, i != 0 ? //Ensure 0 is not added to expression
-                    mk<PLUS>(mk<MULT>(alpha, rhs), mkTerm(mpz_class(i), s->getFactory())) :
-                    mk<MULT>(alpha, rhs)));
-                  --i;
-                }
-              }
-            } else outs() << "The current operation on LHS : " << *lhs << " is not supported!" << endl;
-            sVec.erase(locIte);
-            break;
-          }
-          else locIte += 1;
+            }
+            sVec.erase(locIte); break;
+          } else ++locIte;
         }
-        // no change detected, break while loop.
+        // no change detected, break outer while loop.
         if (sVecTemp.empty()) break; 
-        // Merging sVecTemp w/ sVec
+        // Merging sVecTemp w/ sVec and continue the loop.
         else for (auto ite = sVecTemp.begin(); ite != sVecTemp.end(); ++ite) sVec.push_back(*ite);
       }
       ExprSet fin;
       for (auto t : sVec) fin.insert(t);
-
-      //PRINTING SECTION
-      outs() << "Expressions after oldNormalizationGen(): " << conjoin(fin, s->getFactory()) << endl;
-
       SMTUtils u1(s->getFactory());
+      outs() << "Expressions after oldNormalizationGen(): " << conjoin(fin, s->getFactory()) << endl;
       outs() << "oldNormalizationGen check, beginning equivalent to result: " << u1.isEquiv(s, conjoin(fin, s->getFactory())) << endl;
       return conjoin(fin, s->getFactory());
     }
@@ -1584,8 +1572,8 @@ namespace ufo
   };
 
   /* OLD HELPER FUNCTIONS */
-  //used when initializing the element for sVec, most basic initializer.
-  Expr vecElemInit(Expr t, Expr constVar)
+  // Most basic initializer, also work as helper for vecElemInitInt & vecElemInitReal
+  Expr singleExprNormPrep(Expr t, Expr constVar, bool isInt)
   {
     if (isOp<ComparissonOp>(t))
     {
@@ -1595,22 +1583,22 @@ namespace ufo
       Expr lhs = t->left(), rhs = t->right();
       //ensure lhs is not negative
       if (lhs->arity() == 2) {
-        if (negCoefNumCheck(lhs)) {
-          t = convertNegCoefNum(t); lhs = t->left();
-        }
+        if (isInt) {t = convertNegCoefNum(t); lhs = t->left();}
         if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
           t = negativeCoefCheck(t);
           if (t == NULL) return NULL;
           lhs = t->left(), rhs = t->right();
         }
       }
-      //applying (3), getting rid of LT and GEQ
-      Expr constOne = mkTerm(mpz_class(1), t->getFactory());
-      if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
-      else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+      if (isInt) {
+        //applying (3) to integer Expr, getting rid of LT and GEQ
+        Expr constOne = mkTerm(mpz_class(1), t->getFactory());
+        if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
+        else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+      }
       return t;
     } else {
-      outs() << "(vecElemInit) The input Expr " << *t << " is not comparison!" << endl;
+      outs() << "Error, (singleExprNormPrep) The input Expr " << *t << " is not comparison!" << endl;
       return NULL;
     }
   }
@@ -1631,8 +1619,9 @@ namespace ufo
   Expr getConstYByInput(Expr s) 
   {
     Expr constYTemp = mkTerm<std::string>("y", s->getFactory());
-    Expr intY = bind::intConst(constYTemp), realY = bind::realConst(constYTemp),
-    boolY = bind::boolConst(constYTemp);
+    Expr intY = bind::intConst(constYTemp),
+      realY = bind::realConst(constYTemp),
+      boolY = bind::boolConst(constYTemp);
     if (contains(s, intY)) return intY;
     else if (contains(s, realY)) return realY;
     else if (contains(s, boolY)) return boolY;
@@ -1678,6 +1667,7 @@ namespace ufo
       return NULL;
     }
   }
+  
   // Ensuring lhs doesn't have a negative coefficient.
   Expr negativeCoefCheck(Expr t)
   {
@@ -1718,7 +1708,6 @@ namespace ufo
     for (auto ite : sVec)
     {
       if (isOpX<MPQ>(ite)) outs() << "real? " << *ite << endl;
-      // outs() << "*ite: " << *ite  << isOpX<MPZ>(ite) << endl;
       if (bind::isIntConst(ite) || isOpX<MPZ>(ite)) ++intCt;
       else if (bind::isRealConst(ite) || isOpX<MPQ>(ite)) ++realCt;
       else outs() << "Error identifying: " << *ite << " in intOrReal()." <<endl;
@@ -1733,18 +1722,19 @@ namespace ufo
   
   /* INTEGER HELPER FUNCTION */
   Expr divTransHelper(Expr t, Expr constVar)
-  {
-    if (t->arity() == 2) {
+  { // only for GT & LEQ Expr
+    if (isOpX<GT>(t) || isOpX<LEQ>(t)) {
       Expr lhs = t->left(), rhs = t->right(), y, coef, one = mkTerm(mpz_class(1), t->getFactory());
       if (contains(lhs->left(), constVar)) y = lhs->left(), coef = lhs->right();
       else y = lhs->right(), coef = lhs->left();
       return mk(t->op(), y, mk<MINUS>(mk<MULT>(mk<PLUS>(rhs, one), coef), one));
     } else {
-      outs() << "divTransInt() failed to conduct change on " << *t << endl;
+      outs() << "Error, divTransInt() failed to conduct change on " << *t << endl;
       return t;
     }
   }
 
+  // For single integer Expr normalization, only capable of handling LT & GEQ Exprs 
   Expr divMultTransInt(Expr t, Expr constVar)
   {
     outs() << "divMultTransInt begin: t " << t << endl;
@@ -1753,7 +1743,8 @@ namespace ufo
       int coef = 1;
       while (true) {
         // outs() << "t during transformation: " << *t << endl;
-        if (isOpX<MULT>(lhs)) {
+        if (lhs->arity() == 1) break;
+        else if (isOpX<MULT>(lhs)) {
           if (isOpX<MPZ>(lhs->left())) {
             coef *= boost::lexical_cast<int>(lhs->left());
             t = mk(t->op(), lhs->right(), rhs);
@@ -1761,12 +1752,16 @@ namespace ufo
             coef *= boost::lexical_cast<int>(lhs->right());
             t = mk(t->op(), lhs->left(), rhs);
           } else { 
-            outs() << *t << " contains coefficient that's not a integer constant! Critical error, quit!" << endl;
+            outs() << *t << "Error CRITICAL, contains coefficient that's not a integer constant!" << endl;
             exit(0); //critical error
           }
-        } else if (isOpX<IDIV>(lhs)) t = divTransHelper(t, constVar);
+        } else if (isOpX<IDIV>(lhs)) {
+          t = divTransHelper(t, constVar);
+        } else {
+          outs() << "Error, divMultTransInt(): Unexpected operation (not idiv or mult)." << endl;
+          break;
+        }
         lhs = t->left(), rhs = t->right();
-        if (lhs->arity() == 1) break;
       }
       outs() << "divMultTransInt end: t " << mk(t->op(), lhs, rhs) << endl;
       if (coef > 1) return mk(t->op(), mk<MULT>(mkTerm(mpz_class(coef), t->getFactory()), lhs), rhs);
@@ -1786,74 +1781,37 @@ namespace ufo
   //converting the negative coefficient into a positive coefficient that's being added an UN_MINUS.
   Expr convertNegCoefNum(Expr t)
   {
+    if (!negCoefNumCheck(t->left())) return t; // if t doesn't contain negative coefficient, then do nothing.
     Expr coef = NULL, remain = NULL, lhs = t->left(), rhs = t->right();
     if (isOpX<MPZ>(lhs->left())) coef = lhs->left(), remain = lhs->right();
     else if (isOpX<MPZ>(lhs->right())) coef = lhs->right(), remain = lhs->left();
     if (coef != NULL) {
       coef = mk<UN_MINUS>(mkTerm(mpz_class(boost::lexical_cast<int>(coef) * -1), t->getFactory()));
       t = mk(t->op(), mk<MULT>(coef, remain), rhs);
-    } else outs() << "convertNegCoefNum: Unable to locate lhs coefficient.\n";
+    } else outs() << "Error, convertNegCoefNum: Unable to locate lhs coefficient.\n";
     return t;
   }
 
-  // Expr addMinusTransInt(Expr t, Expr constVar)
-  // {
-  //   outs() << "before addMinusTransInt: " << t <<endl;
-  //   Expr lhs = t->left(), rhs = t->right();
-  //   while (true)
-  //   {
-  //     if (isOp<PLUS>(lhs))
-  //     {
-  //       if (contains(lhs->left(), constVar)) t = mk(t->op(), lhs->left(), mk<MINUS>(rhs, lhs->right()));
-  //       else if (contains(lhs->right(), constVar)) t = mk(t->op(), lhs->right(), mk<MINUS>(rhs, lhs->left()));
-  //       else outs() << "Error: addMinusTransInt can't find constVar\n";
-  //     } else if (isOp<MINUS>(lhs)) {
-  //       if (contains(lhs->left(), constVar)) t = mk(t->op(), lhs->left(), mk<PLUS>(rhs, lhs->right()));
-  //       else if (contains(lhs->right(), constVar)) t = mk(t->op(), lhs->right(), mk<PLUS>(rhs, lhs->left()));
-  //       else outs() << "Error: addMinusTransInt can't find constVar\n";
-  //     } else break;
-  //     lhs = t->left(), rhs = t->right();
-  //   }
-  //   outs() << "after addMinusTransInt: " << t <<endl;
-  //   return t;
-  // }
-
   Expr vecElemInitInt(Expr t, Expr constVar)
   {
-    outs() << "VecElemInitInt beginning t: " << t << endl; //outTest
+    // outs() << "VecElemInitInt beginning t: " << t << endl; //outTest
     if (isOp<ComparissonOp>(t))
     {
       //EQ or NEQ expression are not currently supported.
       if (isOpX<EQ>(t) || isOpX<NEQ>(t)) return NULL; 
-      //ensure y is on lhs.
-      if (contains(t->right(), constVar)) t = revExpr(t);
-      if ( t == NULL ) return NULL;
-      Expr lhs = t->left(), rhs = t->right();
-      //ensure lhs is not negative
-      if (lhs->arity() == 2) {
-        if (negCoefNumCheck(lhs)) {
-          t = convertNegCoefNum(t); lhs = t->left();
-        }
-        if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
-          t = negativeCoefCheck(t);
-          if (t == NULL) return NULL;
-          lhs = t->left(), rhs = t->right();
-        }
-      }
-      //applying (3), getting rid of LT and GEQ
-      Expr constOne = mkTerm(mpz_class(1), t->getFactory());
-      if (isOpX<LT>(t)) t = mk<LEQ>(lhs, mk<MINUS>(rhs, constOne));
-      else if (isOpX<GEQ>(t)) t = mk<GT>(lhs, mk<MINUS>(rhs, constOne));
+      //ensure y is on lhs, lhs not negative, & get rid of LT and GEQ
+      t = singleExprNormPrep(t, constVar, true);
+      if (t == NULL) return t;
       // Single conjunct Mult & Div transformation.
-      if (isOp<MULT>(lhs) || isOp<IDIV>(lhs)) t = divMultTransInt(t, constVar);
-      // if (isOp<PLUS>(lhs) || isOp<MINUS>(lhs)) t = addMinusTransInt(t, constVar); // + and - transformation
-      outs() << "VecElemInitInt after t: " << *t << endl << endl; //outTest
+      if (isOp<MULT>(t->left()) || isOp<IDIV>(t->left())) t = divMultTransInt(t, constVar);
+      // outs() << "VecElemInitInt after t: " << *t << endl << endl; //outTest
       return t;
     } else {
       outs() << "(vecElemInitInt)The input Expr " << *t << " is not comparison!" << endl;
       return NULL;
     }
   }
+
   // Helper function for coefTrans
   Expr coefApply(Expr t, Expr constVar, int LCM)
   {
@@ -1942,21 +1900,10 @@ namespace ufo
     {
       //EQ or NEQ expression are not currently supported.
       if (isOpX<EQ>(t) || isOpX<NEQ>(t)) return NULL; 
-      //ensure y is on lhs.
-      if (contains(t->right(), constVar)) t = revExpr(t);
-      if ( t == NULL ) return NULL;
-      Expr lhs = t->left(), rhs = t->right();
-      //ensure lhs is not negative
-      if (lhs->arity() == 2)
-      {
-        if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
-          t = negativeCoefCheck(t);
-          if (t == NULL) return NULL;
-          lhs = t->left(), rhs = t->right();
-        }
-      }
+      t = singleExprNormPrep(t, constVar);
+      if (t == NULL) return t;
       //MULTIPLICATION TRANSFORMATION
-      if (isOp<MULT>(lhs)) t = multTrans(t, constVar);
+      if (isOp<MULT>(t->left())) t = multTrans(t, constVar);
       return t;
     } else {
       outs() << "(vecElemInitReal)The input Expr " << *t << " is not comparison!" << endl;
