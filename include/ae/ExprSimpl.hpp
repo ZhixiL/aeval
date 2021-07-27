@@ -471,41 +471,45 @@ namespace ufo
    *  Helper used in ineqMover
    */
   template <typename T> static Expr rewriteHelperM(Expr e, Expr var){
-    outs() << "beginning, rewriteHelperM, e: " << *e << endl;
+    outs() << "beginning, rewriteHelperM, e: " << *e << endl; //outTest
     Expr l = e->left();
     Expr r = e->right();
     ExprVector orig_lhs, orig_rhs, lhs, rhs;
     ExprVector divVec, idivVec;
 
     // parse
-
-    bool negLeft = false;
+    std::vector<bool> isNeg;
     getAddTerm(l, orig_lhs);
     getAddTerm(r, orig_rhs);
     for (auto & a : orig_lhs)
     {
       // capture un_minus
-      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); negLeft = true;}
+      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); isNeg.push_back(true);}
+      else isNeg.push_back(false);
 
       if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
         if (isOp<DIV>(a)) divVec.push_back(a->right());
         else idivVec.push_back(a->right());
         lhs.push_back(a->left());
-      } else if (contains (a, var)) lhs.push_back(a);
+      }
+      if (contains (a, var)) lhs.push_back(a);
       else rhs.push_back(additiveInverse(a));
     }
     for (auto & a : orig_rhs)
     {
-      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); negLeft = true;}
+      // capture un_minus
+      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); isNeg.push_back(true);}
+      else isNeg.push_back(false);
 
       if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
         if (isOp<DIV>(a)) divVec.push_back(a->right());
         else idivVec.push_back(a->right());
         lhs.push_back(a->left());
-      } if (contains (a, var)) lhs.push_back(additiveInverse(a));
+      }
+      if (contains (a, var)) lhs.push_back(additiveInverse(a));
       else rhs.push_back(a);
     }
-    outs() << "lhs: " << conjoin(lhs, e->getFactory()) << "\nrhs: " << conjoin(rhs, e->getFactory()) << endl;
+    outs() << "lhs: " << conjoin(lhs, e->getFactory()) << "\nrhs: " << conjoin(rhs, e->getFactory()) << endl; //outTest
     // combine results
 
     cpp_int coef = 0;
@@ -532,6 +536,9 @@ namespace ufo
 
     r = mkplus(rhs, e->getFactory());
 
+    // since some of y presented in lhs may be part of div or idiv, subtract those from coef.
+    coef -= (divVec.size() + idivVec.size());
+
     if (coef == 0){
       l = mkMPZ (0, e->getFactory());
     } else if (coef == 1){
@@ -540,9 +547,27 @@ namespace ufo
       l = mk<MULT>(mkMPZ(coef, e->getFactory()), var);
     }
 
-    for (auto denom : divVec) l = mk<DIV>(l, denom);
-    for (auto denom : idivVec) l = mk<IDIV>(l, denom);
-    if (negLeft) l = mk<UN_MINUS>(l);
+    ExprVector tempVec;
+    for (auto denom : divVec) {
+      if (isNeg.front() == true) tempVec.push_back(mk<UN_MINUS>(mk<DIV>(var, denom)));
+      else tempVec.push_back(mk<DIV>(var, denom));
+      isNeg.erase(isNeg.begin());
+    }
+    for (auto denom : idivVec) {
+      if (isNeg.front() == true) tempVec.push_back(mk<UN_MINUS>(mk<IDIV>(var, denom)));
+      else tempVec.push_back(mk<IDIV>(var, denom));
+      isNeg.erase(isNeg.begin());
+    }
+    
+    if (!tempVec.empty())
+    {
+      // push the first division expr with y in the case if no y is present on l.
+      if (coef == 0) {
+        l = tempVec.front(); 
+        tempVec.erase(tempVec.begin()); 
+      }
+      for (auto t: tempVec) l = mk<PLUS>(l, t); // push the remaining division expr with y if there's any.
+    }
 
     outs() << "end, rewriteHelperM, e: " << mk<T>(l, r) << endl;
     return mk<T>(l,r);
