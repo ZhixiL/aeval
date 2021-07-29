@@ -263,9 +263,9 @@ namespace ufo
       {
         ExprMap map;
         tempPr = z3_qe_model_project_skolem (z3, m, exp, tempPr, map);
-        outs() << "before mixQEMethod pr: " << pr << endl; // outTest
+        // outs() << "before mixQEMethod pr: " << pr << endl; // outTest
         pr = simplifyArithm(mixQE(getTrueLiterals(pr, m), exp, substsMap, m));
-        outs() << "after mixQEMethod pr: " << pr << endl; //outTest
+        // outs() << "after mixQEMethod pr: " << pr << endl; //outTest
         if (m.eval(exp) != exp) modelMap[exp] = mk<EQ>(exp, m.eval(exp));
         // if (skol) getLocalSkolems(m, exp, map, substsMap, modelMap, pr);
       }
@@ -1958,7 +1958,7 @@ namespace ufo
       output = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
       if (false) {
         SMTUtils u1(s->getFactory());
-        outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+        // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
         outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
         if (contains(output, constVar)) outs() << "MIXQE didn't remove var!\n";
       }
@@ -1992,7 +1992,7 @@ namespace ufo
       }
       else outSet.insert(t);
     }
-    outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl; // outTest
+    // outs() << "sameTypeSet: " << conjoin(sameTypeSet, s->getFactory()) << endl; // outTest
     if (sameTypeSet.empty()) return conjoin(outSet, s->efac());
     // Append map to substsMap
     substsMap[constVar] = conjoin(sameTypeSet, s->getFactory());
@@ -2002,7 +2002,7 @@ namespace ufo
     // SANITY CHECK
     if (true) {
       SMTUtils u1(s->getFactory());
-      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
+      // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
       outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl; //outTest
       if (contains(output, constVar)) outs() << "MixedQE didn't eliminate var!" << endl;
       // if (u1.isEquiv(orig, output) == false) exit(0);

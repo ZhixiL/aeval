@@ -484,29 +484,37 @@ namespace ufo
     for (auto & a : orig_lhs)
     {
       // capture un_minus
-      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); isNeg.push_back(true);}
-      else isNeg.push_back(false);
-
-      if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
+      bool negFlag = false;
+      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); negFlag = true;}
+      if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)) 
+      {
         if (isOp<DIV>(a)) divVec.push_back(a->right());
         else idivVec.push_back(a->right());
-        lhs.push_back(a->left());
+        isNeg.push_back(negFlag);
+        // lhs.push_back(a->left());
+      } else if (contains (a, var)) 
+      { // re-insert un_minus if it was captured earlier for DIV.
+        if (negFlag) lhs.push_back(mk<UN_MINUS>(a));
+        else lhs.push_back(a);
       }
-      if (contains (a, var)) lhs.push_back(a);
       else rhs.push_back(additiveInverse(a));
     }
     for (auto & a : orig_rhs)
     {
       // capture un_minus
-      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); isNeg.push_back(true);}
-      else isNeg.push_back(false);
-
-      if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)){
+      bool negFlag = false;
+      if (isOpX<UN_MINUS>(a) && contains(a, var)) {a = a->left(); negFlag = true;}
+      if ((isOp<DIV>(a) || isOp<IDIV>(a)) && contains(a->left(), var)) 
+      {
         if (isOp<DIV>(a)) divVec.push_back(a->right());
         else idivVec.push_back(a->right());
-        lhs.push_back(a->left());
+        isNeg.push_back(negFlag);
+        // lhs.push_back(additiveInverse(a->left()));
+      } else if (contains (a, var)) 
+      {
+        if (negFlag) lhs.push_back(additiveInverse(mk<UN_MINUS>(a)));
+        else lhs.push_back(additiveInverse(a));
       }
-      if (contains (a, var)) lhs.push_back(additiveInverse(a));
       else rhs.push_back(a);
     }
     outs() << "lhs: " << conjoin(lhs, e->getFactory()) << "\nrhs: " << conjoin(rhs, e->getFactory()) << endl; //outTest
@@ -536,8 +544,8 @@ namespace ufo
 
     r = mkplus(rhs, e->getFactory());
 
-    // since some of y presented in lhs may be part of div or idiv, subtract those from coef.
-    coef -= (divVec.size() + idivVec.size());
+    // // since some of y presented in lhs may be part of div or idiv, subtract those from coef.
+    // coef -= (divVec.size() + idivVec.size());
 
     if (coef == 0){
       l = mkMPZ (0, e->getFactory());
