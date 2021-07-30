@@ -1,0 +1,11 @@
+(declare-fun x1 () Int)
+(declare-fun x2 () Int)
+(declare-fun y () Int)
+
+(assert (let ((a!1 (div (* (- 1) (+ (* (- 5) x2) (* 3 x1))) 3)))
+(let ((a!2 (< a!1 (+ (div (* (- 3) x1) 3) 0))))
+(let ((a!3 (+ 1 (ite a!2 (div (* (- 3) x1) 3) a!1))))
+  (= y a!3)))))
+(assert (let ((a!1 (>= (+ (* (- 3) x1) (* 5 x2)) (* 3 y))))
+  (or (= (* (- 3) x1) (* 3 y)) a!1)))
+(check-sat)

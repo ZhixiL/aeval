@@ -471,7 +471,7 @@ namespace ufo
    *  Helper used in ineqMover
    */
   template <typename T> static Expr rewriteHelperM(Expr e, Expr var){
-    outs() << "beginning, rewriteHelperM, e: " << *e << endl; //outTest
+    // outs() << "beginning, rewriteHelperM, e: " << *e << endl; //outTest
     Expr l = e->left();
     Expr r = e->right();
     ExprVector orig_lhs, orig_rhs, lhs, rhs;
@@ -517,7 +517,7 @@ namespace ufo
       }
       else rhs.push_back(a);
     }
-    outs() << "lhs: " << conjoin(lhs, e->getFactory()) << "\nrhs: " << conjoin(rhs, e->getFactory()) << endl; //outTest
+    // outs() << "lhs: " << conjoin(lhs, e->getFactory()) << "\nrhs: " << conjoin(rhs, e->getFactory()) << endl; //outTest
     // combine results
 
     cpp_int coef = 0;
@@ -577,7 +577,7 @@ namespace ufo
       for (auto t: tempVec) l = mk<PLUS>(l, t); // push the remaining division expr with y if there's any.
     }
 
-    outs() << "end, rewriteHelperM, e: " << mk<T>(l, r) << endl;
+    // outs() << "end, rewriteHelperM, e: " << mk<T>(l, r) << endl;
     return mk<T>(l,r);
   }
 

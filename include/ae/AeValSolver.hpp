@@ -240,8 +240,8 @@ namespace ufo
       Expr disjProj = mk<IMPL>(s, disjoin(projections, efac));
       // outs() << "\nDisjunctions of projections: " << *disjProj << "\n";
       // outs() << "exists v. s => t: " << sImpT << endl; //outTest
-      // u.print(disjProj);
-      // outs () << "\n\n";
+      u.print(disjProj);
+      outs () << "\n\n";
       // u.print(sImpT);
       // outs () << "\n\n";
       SMTUtils u1(t->getFactory());
@@ -1736,7 +1736,7 @@ namespace ufo
   // For single integer Expr normalization, only capable of handling LT & GEQ Exprs 
   Expr divMultTransInt(Expr t, Expr constVar)
   {
-    outs() << "divMultTransInt begin: t " << t << endl;
+    // outs() << "divMultTransInt begin: t " << t << endl;
     Expr lhs = t->left(), rhs = t->right();
     if (lhs->arity() == 2) {
       int coef = 1;
@@ -1762,7 +1762,7 @@ namespace ufo
         }
         lhs = t->left(), rhs = t->right();
       }
-      outs() << "divMultTransInt end: t " << mk(t->op(), lhs, rhs) << endl;
+      // outs() << "divMultTransInt end: t " << mk(t->op(), lhs, rhs) << endl;
       if (coef > 1) return mk(t->op(), mk<MULT>(mkTerm(mpz_class(coef), t->getFactory()), lhs), rhs);
       else return mk(t->op(), lhs, rhs);
     } else return t;
@@ -1956,9 +1956,9 @@ namespace ufo
     {
       if (m.eval(constVar) != constVar) substsMap[constVar] = mk<EQ>(constVar, m.eval(constVar));
       output = simplifyBool(mk<OR>(replaceAll(s, constVar, mk<TRUE>(s->efac())), replaceAll(s, constVar, mk<FALSE>(s->efac()))));
-      if (false) {
+      if (true) {
         SMTUtils u1(s->getFactory());
-        // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
+        outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest
         outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl << endl; //outTest
         if (contains(output, constVar)) outs() << "MIXQE didn't remove var!\n";
       }
@@ -2002,8 +2002,11 @@ namespace ufo
     // SANITY CHECK
     if (true) {
       SMTUtils u1(s->getFactory());
-      // outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
+      outs() << "Before mixQE: " << orig << "\nAfter mixQE: " << output << endl; //outTest 
+      u1.print(output);
+      outs() << "\n";
       outs() << "mixQE() Equivalence Check: " << u1.isEquiv(orig, output) << endl; //outTest
+
       if (contains(output, constVar)) outs() << "MixedQE didn't eliminate var!" << endl;
       // if (u1.isEquiv(orig, output) == false) exit(0);
     }
@@ -2106,6 +2109,8 @@ namespace ufo
           u.serialize_formula(sepSkols);
           if (debug) outs () << "Sanity check [split]: " <<
             u.implies(mk<AND>(s, conjoin(sepSkols, s->getFactory())), t_orig) << "\n";
+          
+          // u.outSanCheck("extractedSanChecks/multEx10.smt2");
         }
         else
         {

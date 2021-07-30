@@ -4,6 +4,8 @@
 
 #include "ae/ExprSimpl.hpp"
 #include "ufo/Smt/EZ3.hh"
+#include <iostream>
+#include <fstream>
 
 using namespace std;
 using namespace boost;
@@ -23,6 +25,14 @@ namespace ufo
     SMTUtils (ExprFactory& _efac) :
       efac(_efac), z3(efac), smt (z3), can_get_model(0) {}
 
+    void outSanCheck(string filename)
+    {
+      ofstream file;
+      file.open(filename);
+      smt.toSmtLib(file);
+      file.close();
+    }
+    
     Expr getModel(Expr v)
     {
       if (!can_get_model) return NULL;
