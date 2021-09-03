@@ -14,7 +14,7 @@ namespace ufo
 
   Expr mixQE(Expr s, Expr constVar, ExprMap &substsMap, ZSolver<EZ3>::Model &m);
   Expr static createQuantifiedFormulaRestr (Expr def, Expr a, bool forall);
-  Expr multTrans(Expr t, Expr constY);
+  Expr multTrans(Expr t, Expr constVar);
   Expr revExpr(Expr s);
   Expr negativeCoefCheck(Expr t);
   Expr singleExprNormPrep(Expr t, Expr constVar, bool isInt = false);
@@ -811,6 +811,7 @@ namespace ufo
       return exp;
     }
 
+    // normalization generator for integer 
     Expr oldNormalizationGen(Expr s, Expr var)
     {
       outs() << "Printing original SMT formula:\n" << *s << endl;
@@ -1579,16 +1580,13 @@ namespace ufo
       //ensure y is on lhs.
       if (contains(t->right(), constVar)) t = revExpr(t);
       if ( t == NULL ) return NULL;
-      Expr lhs = t->left(), rhs = t->right();
       //ensure lhs is not negative
-      if (lhs->arity() == 2) {
-        if (isInt) {t = convertNegCoefNum(t); lhs = t->left();}
-        if (isOpX<UN_MINUS>(lhs->left()) || isOpX<UN_MINUS>(lhs->right())) {
-          t = negativeCoefCheck(t);
-          if (t == NULL) return NULL;
-          lhs = t->left(), rhs = t->right();
-        }
+      if (t->left()->arity() == 2) {
+        if (isInt) t = convertNegCoefNum(t);
+        t = negativeCoefCheck(t);
       }
+      // constant change to lhs & rhs may occur, thus placing initialization in the middle.
+      Expr lhs = t->left(), rhs = t->right();
       if (isInt) {
         //applying (3) to integer Expr, getting rid of LT and GEQ
         Expr constOne = mkTerm(mpz_class(1), t->getFactory());
@@ -1648,7 +1646,8 @@ namespace ufo
       return NULL;
     }
   }
-
+  
+  // reverse the current comparison expression.
   Expr revExpr(Expr s)
   {
     if (isOp<ComparissonOp>(s))
@@ -1666,37 +1665,7 @@ namespace ufo
       return NULL;
     }
   }
-  
-  // Ensuring lhs doesn't have a negative coefficient.
-  Expr negativeCoefCheck(Expr t)
-  {
-    if (isOp<ComparissonOp>(t))
-    {
-      Expr lhs = t->left(), rhs = t->right();
-      if (isOpX<UN_MINUS>(lhs->left()))
-      {
-        Expr coef = lhs->left()->left();
-        lhs = mk(lhs->op(), coef, lhs->right());
-      } else if (isOpX<UN_MINUS>(lhs->right()))
-      {
-        Expr coef = lhs->right()->left();
-        lhs = mk(lhs->op(), lhs->left(), coef);
-      } else {
-        outs() << "Error on finding negative value on LHS in negativeCoefCheck()!";
-        return NULL;
-      }
-      rhs = mk<MULT>(mk<UN_MINUS>(mkTerm(mpz_class(1), t->getFactory())), rhs);
-      if (isOpX<LT>(t)) return mk<GT>(lhs, rhs);
-      else if (isOpX<LEQ>(t)) return mk<GEQ>(lhs, rhs);
-      else if (isOpX<GT>(t)) return mk<LT>(lhs, rhs);
-      else if (isOpX<GEQ>(t)) return mk<LEQ>(lhs, rhs);
-      outs() << "Error in negativeCoefCheck(): current comparison for expression ";
-      outs() << *t << " is not supported." << endl;
-      return NULL;
-    }
-    outs() << "Error in negativeCoefCheck(): input Expr is not supported." << endl;
-    return NULL;
-  }
+
   // check if expression is all integer (returns 1) or all real (returns -1). 
   int intOrReal(Expr s)
   {
@@ -1717,7 +1686,6 @@ namespace ufo
     outs() << "For s: " << s << "\n\tCurrent realCt = " << realCt << "\n\tCurrent intCt = " << intCt << endl;
     return 0; //mixture of int and real.
   }
-  
   
   /* INTEGER HELPER FUNCTION */
   Expr divTransHelper(Expr t, Expr constVar)
@@ -1751,7 +1719,7 @@ namespace ufo
             coef *= boost::lexical_cast<int>(lhs->right());
             t = mk(t->op(), lhs->left(), rhs);
           } else { 
-            outs() << *t << "Error CRITICAL, contains coefficient that's not a integer constant!" << endl;
+            outs() << *t << "Error: " << t << " contains coefficient that's not a integer constant!" << endl;
             exit(0); //critical error
           }
         } else if (isOpX<IDIV>(lhs)) {
@@ -1791,6 +1759,33 @@ namespace ufo
     return t;
   }
 
+  // Move all neg coef to rhs so lhs doesn't have any negative coefficient
+  Expr negativeCoefCheck(Expr t)
+  {
+    if (!negCoefNumCheck(t->left())) return t;
+    Expr lhs = t->left(), rhs = t->right();
+    if (isOpX<UN_MINUS>(lhs->left()))
+    {
+      Expr coef = lhs->left()->left();
+      lhs = mk(lhs->op(), coef, lhs->right());
+    } else if (isOpX<UN_MINUS>(lhs->right()))
+    {
+      Expr coef = lhs->right()->left();
+      lhs = mk(lhs->op(), lhs->left(), coef);
+    } else {
+      outs() << "Error on finding negative value on LHS in negativeCoefCheck()!";
+      return NULL;
+    }
+    rhs = mk<MULT>(mk<UN_MINUS>(mkTerm(mpz_class(1), t->getFactory())), rhs);
+    if (isOpX<LT>(t)) return mk<GT>(lhs, rhs);
+    else if (isOpX<LEQ>(t)) return mk<GEQ>(lhs, rhs);
+    else if (isOpX<GT>(t)) return mk<LT>(lhs, rhs);
+    else if (isOpX<GEQ>(t)) return mk<LEQ>(lhs, rhs);
+    outs() << "Error in negativeCoefCheck(): current comparison for expression ";
+    outs() << *t << " is not supported." << endl;
+    return NULL;
+  }
+
   Expr vecElemInitInt(Expr t, Expr constVar)
   {
     // outs() << "VecElemInitInt beginning t: " << t << endl; //outTest
@@ -1825,6 +1820,18 @@ namespace ufo
     return (mk(t->op(), lhs, rhs));
   }
 
+  // helper to find least common multiple.
+  int findLCM(int a, int b)
+  { // lcm(a,b) = a*b/gcd(a,b) 
+    int prod = a * b;
+    while (a != b)
+    {
+      if (a > b) a = a - b;
+      else b = b - a;
+    }
+    return prod / a;
+  }
+
   ExprVector coefTrans(ExprVector sVec, Expr constVar)
   {
     ExprVector outVec;
@@ -1840,12 +1847,7 @@ namespace ufo
         else outs() << "Coef not found in " << *ite << endl;
       }
     }
-    while (true) {
-      bool flag = true;
-      for (auto i : intVec) if (LCM % i != 0) {flag = false; break;}
-      if (flag) break;
-      else ++LCM;
-    }
+    for (auto i : intVec) LCM = findLCM(LCM, i);
     // Making all Coefs for y into LCM
     if (LCM > 1) for (auto t : sVec) outVec.push_back(coefApply(t, constVar, LCM));
     else for (auto t : sVec) outVec.push_back(t);
@@ -2018,27 +2020,6 @@ namespace ufo
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
-
-    // outs() << "Printing original SMT formula:\n" << *s << endl << endl;
-    // Expr inpExpr, qeExpr, constY = getConstYByInput(s);
-    // qeExpr = mixQE(s, constY);
-    // if (qeExpr == NULL) {
-    //   outs() << "This Expr " << *s << " is not supported, QE error." << endl;
-    //   exit(0);
-    // }
-    // if (constY == NULL) inpExpr = s;
-    // else inpExpr = createQuantifiedFormulaRestr(s, constY);
-    // SMTUtils u1(s->getFactory());
-    // // outs() << "Final Test:" << endl;
-    // // auto start = std::chrono::system_clock::now();
-    // outs() << "inpExpr: " << *inpExpr << "\nqeExpr: " << *qeExpr << endl;
-    // outs() << "Input Expression => Quantifier Eliminated Expression: " << u1.implies(inpExpr, qeExpr) << endl;
-    // // outs() << "model: \n" << u1.getModel() << endl; 
-    // outs() << "Quantifier Eliminated Expression => Input Expression: " << u1.implies(qeExpr, inpExpr) << endl;
-    // // auto end = std::chrono::system_clock::now();
-    // // std::chrono::duration<double> duration = end-start;
-    // // outs() << "Time for final test execution: " << duration.count() << " seconds" << endl;
-    // exit(0);
 
     ExprSet t_quantified;
     if (t == NULL)
