@@ -15,10 +15,7 @@ namespace ufo
   Expr mixQE(Expr s, Expr constVar, ExprMap &substsMap, ZSolver<EZ3>::Model &m);
   Expr static createQuantifiedFormulaRestr (Expr def, Expr a, bool forall);
   Expr multTrans(Expr t, Expr constVar);
-  Expr revExpr(Expr s);
-  Expr negativeCoefCheck(Expr t);
   Expr singleExprNormPrep(Expr t, Expr constVar, bool isInt = false);
-  Expr convertNegCoefNum(Expr t);
 
   class AeValSolver {
   private:
@@ -1571,6 +1568,10 @@ namespace ufo
     }
   };
 
+  Expr negativeCoefCheck(Expr t);
+  Expr revExpr(Expr s);
+  Expr convertNegCoefNum(Expr t);
+
   /* OLD HELPER FUNCTIONS */
   // Most basic initializer, also work as helper for vecElemInitInt & vecElemInitReal
   Expr singleExprNormPrep(Expr t, Expr constVar, bool isInt)
@@ -1650,20 +1651,14 @@ namespace ufo
   // reverse the current comparison expression.
   Expr revExpr(Expr s)
   {
-    if (isOp<ComparissonOp>(s))
-    {
-      Expr lhs = s->left(), rhs = s->right();
-      if (isOpX<LT>(s)) return mk<GT>(rhs, lhs);
-      else if (isOpX<LEQ>(s)) return mk<GEQ>(rhs, lhs);
-      else if (isOpX<GT>(s)) return mk<LT>(rhs, lhs);
-      else if (isOpX<GEQ>(s)) return mk<LEQ>(rhs, lhs);
-      outs() << "ERROR in revExpr(): current comparison for expression ";
-      outs() << *s << " is not supported." << endl;
-      return NULL;
-    } else {
-      outs() << "Error in revExpr(): input Expr is not supported, incorrect length." << endl;
-      return NULL;
-    }
+    Expr lhs = s->left(), rhs = s->right();
+    if (isOpX<LT>(s)) return mk<GT>(rhs, lhs);
+    else if (isOpX<LEQ>(s)) return mk<GEQ>(rhs, lhs);
+    else if (isOpX<GT>(s)) return mk<LT>(rhs, lhs);
+    else if (isOpX<GEQ>(s)) return mk<LEQ>(rhs, lhs);
+    outs() << "Error in revExpr(): current comparison for expression ";
+    outs() << *s << " is not supported." << endl;
+    return NULL;
   }
 
   // check if expression is all integer (returns 1) or all real (returns -1). 
@@ -1696,7 +1691,7 @@ namespace ufo
       else y = lhs->right(), coef = lhs->left();
       return mk(t->op(), y, mk<MINUS>(mk<MULT>(mk<PLUS>(rhs, one), coef), one));
     } else {
-      outs() << "Error, divTransInt() failed to conduct change on " << *t << endl;
+      outs() << "Error, divTransInt(): " << *t << " is not GT nor LEQ." <<endl;
       return t;
     }
   }
@@ -1719,8 +1714,8 @@ namespace ufo
             coef *= boost::lexical_cast<int>(lhs->right());
             t = mk(t->op(), lhs->left(), rhs);
           } else { 
-            outs() << *t << "Error: " << t << " contains coefficient that's not a integer constant!" << endl;
-            exit(0); //critical error
+            outs() << "Error: " << *t << " contains coefficient that's not a integer constant!" << endl;
+            exit(0); //critical Error
           }
         } else if (isOpX<IDIV>(lhs)) {
           t = divTransHelper(t, constVar);
@@ -1762,7 +1757,6 @@ namespace ufo
   // Move all neg coef to rhs so lhs doesn't have any negative coefficient
   Expr negativeCoefCheck(Expr t)
   {
-    if (!negCoefNumCheck(t->left())) return t;
     Expr lhs = t->left(), rhs = t->right();
     if (isOpX<UN_MINUS>(lhs->left()))
     {
@@ -1773,8 +1767,7 @@ namespace ufo
       Expr coef = lhs->right()->left();
       lhs = mk(lhs->op(), lhs->left(), coef);
     } else {
-      outs() << "Error on finding negative value on LHS in negativeCoefCheck()!";
-      return NULL;
+      return t;
     }
     rhs = mk<MULT>(mk<UN_MINUS>(mkTerm(mpz_class(1), t->getFactory())), rhs);
     if (isOpX<LT>(t)) return mk<GT>(lhs, rhs);
@@ -2020,7 +2013,6 @@ namespace ufo
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
-
     ExprSet t_quantified;
     if (t == NULL)
     {
