@@ -253,6 +253,11 @@ namespace ufo
     return aType == mk<INT_TY>(a->getFactory()) || aType == mk<REAL_TY>(a->getFactory());
   }
 
+  inline static bool isNumericConst(Expr e)
+  {
+    return isOpX<MPZ>(e) || isOpX<MPQ>(e);
+  }
+
   inline static void getMultOps (Expr a, ExprVector &ops)
   {
     if (isOpX<MULT>(a)){
@@ -1461,6 +1466,236 @@ namespace ufo
         cnjs.insert(mk<EQ>(facts[i], repls[i]));
   }
 
+  // helper used in `constantPropagationRec`:
+  template<typename Range> static bool contradictionCheck(Expr bc, Expr defVal, Range& hardVars,
+                                        ExprSet& cnjs, ExprSet& toInsertHard, ExprMap& repls)
+  {
+    if (emptyIntersect(bc, hardVars))
+    {
+      if (repls[bc] == NULL) repls[bc] = defVal;
+      else if (repls[bc] != defVal)
+      {
+        cnjs.clear();
+        cnjs.insert(mk<FALSE>(bc->getFactory()));      // contradiction is found, like b /\ ~b
+        return true;
+      }
+      // otherwise, the constraint is already there
+    }
+    else toInsertHard.insert(isOpX<TRUE>(defVal) ? bc : mk<NEG>(bc));
+    return false;
+  }
+  
+  template<typename Range> static void constantPropagationRec(Range& hardVars, ExprSet& cnjs, ExprMap& repls, bool doArithm)
+  {
+    ExprSet toInsert, toInsertHard;
+    for (auto it = cnjs.begin(); it != cnjs.end(); )
+    {
+      Expr a = *it;
+      if (isOpX<TRUE>(a))
+      {
+        it = cnjs.erase(it);
+        continue;
+      }
+      if (isOpX<FALSE>(a))
+      {
+        cnjs.clear();
+        cnjs.insert(mk<FALSE>(a->getFactory()));
+        return;
+      }
+
+      if (isOpX<IMPL>(a))
+      {
+        Expr lhs = a->left();
+
+        if (isOpX<TRUE>(lhs)) a = a->right();
+        else if (isOpX<FALSE>(lhs))
+        {
+          it = cnjs.erase(it);
+          continue;
+        }
+      }
+
+      if (isOpX<EQ>(a))
+      {
+        Expr lhs = a->left();
+        Expr rhs = a->right();
+        if ((isOpX<TRUE>(lhs) && isOpX<TRUE>(rhs)) ||
+            (isOpX<FALSE>(lhs) && isOpX<FALSE>(rhs)))
+        {
+          it = cnjs.erase(it);
+          continue;
+        }
+        else if (isOpX<TRUE>(lhs)) a = rhs;
+        else if (isOpX<FALSE>(lhs)) a = mkNeg(rhs);
+        else if (isOpX<TRUE>(rhs)) a = lhs;
+        else if (isOpX<FALSE>(rhs)) a = mkNeg(lhs);
+      }
+
+      if (a->arity() == 2 && (isOpX<NEQ>(a) || isOpX<XOR>(a)))
+      {
+        Expr lhs = a->left();
+        Expr rhs = a->right();
+        if ((isOpX<TRUE>(lhs) && isOpX<FALSE>(rhs)) ||
+            (isOpX<FALSE>(lhs) && isOpX<TRUE>(rhs)))
+        {
+          it = cnjs.erase(it);
+          continue;
+        }
+        else if (isOpX<TRUE>(lhs)) a = mkNeg(rhs);
+        else if (isOpX<FALSE>(lhs)) a = rhs;
+        else if (isOpX<TRUE>(rhs)) a = mkNeg(lhs);
+        else if (isOpX<FALSE>(rhs)) a = lhs;
+      }
+
+      ExprSet splitted;
+      getConj(a, splitted);
+
+      for (auto c : splitted)
+      {
+        if (isOpX<NEG>(c) && !isBoolConst(c->left()))
+          c = mkNeg(c->left());
+
+        if (doArithm && isOpX<EQ>(c))
+        {
+          Expr cons = NULL;
+          Expr rest = NULL;
+          if (isNumericConst(c->left()))
+          {
+            cons = c->left();
+            rest = c->right();
+          }
+          else if (isNumericConst(c->right()))
+          {
+            cons = c->right();
+            rest = c->left();
+          }
+
+          if (cons != NULL && IsConst()(rest))
+          {
+            if (emptyIntersect(rest, hardVars))
+            {
+              if (repls[rest] == NULL)
+                repls[rest] = cons;
+              else if (repls[rest] != cons)
+              {
+                cnjs.clear();
+                cnjs.insert(mk<FALSE>(a->getFactory()));     // contradiction is found, like a = 0 /\ a = 1
+                return;
+              }
+            }
+            else
+              toInsertHard.insert(c);
+          }
+          else toInsert.insert(c);
+        }
+        else if (isBoolConst(c))
+        {
+          if (contradictionCheck(c, mk<TRUE>(a->getFactory()), hardVars, cnjs, toInsertHard, repls))
+            return;
+        }
+        else if (isOpX<NEG>(c) && isBoolConst(c->left()))
+        {
+          if (contradictionCheck(c->left(), mk<FALSE>(a->getFactory()), hardVars, cnjs, toInsertHard, repls))
+            return;
+        }
+        else
+          toInsert.insert(c);
+      }
+
+      it = cnjs.erase(it);
+    }
+
+    bool toRestart = false;
+    for (auto & a : toInsert)
+    {
+      Expr b = replaceAll(a, repls);
+      if (doArithm) b = simplifyArithm(b);
+      b = simplifyBool(b);
+      if (!toRestart && a != b) toRestart = true;
+      cnjs.insert(b);
+    }
+    cnjs.insert(toInsertHard.begin(), toInsertHard.end());
+
+    if (toRestart)
+      constantPropagationRec(hardVars, cnjs, repls, doArithm);
+  }
+
+  // simplification based on boolean replacements
+  template<typename Range> static void constantPropagation(Range& hardVars, ExprSet& cnjs, bool doArithm = true)
+  {
+    ExprMap repls;
+    constantPropagationRec(hardVars, cnjs, repls, doArithm);
+  }
+
+  // simplification based on equivalence classes
+  template<typename Range> static Expr simpEquivClasses(Range& hardVars, ExprSet& cnjs, ExprFactory& efac)
+  {
+    set<ExprVector*> equivs;
+    Expr res = conjoin(cnjs, efac);
+
+    // get classes
+    for (auto it = cnjs.begin(); it != cnjs.end(); it = cnjs.erase(it))
+    {
+      Expr e = *it;
+      if (isOpX<EQ>(e))
+      {
+        bool found = false;
+        for (auto eq : equivs)
+        {
+          bool foundLeft = find(eq->begin(), eq->end(), e->left()) != eq->end();
+          bool foundRight = find(eq->begin(), eq->end(), e->right()) != eq->end();
+          if (foundLeft && !foundRight) { found = true; eq->push_back(e->right()); break; }
+          else if (!foundLeft && foundRight) { found = true; eq->push_back(e->left()); break; }
+        }
+        if (!found)
+        {
+          ExprVector* n = new ExprVector();
+          n->push_back(e->left());
+          n->push_back(e->right());
+          equivs.insert(n);
+        }
+      }
+    }
+
+    // do rewriting
+    bool toRepeat = false;
+    ExprSet removed;
+    for (auto & eq : equivs)
+    {
+      Expr hardVar = NULL;
+      for (auto & a : hardVars)
+      {
+        for (auto it = eq->begin(); it != eq->end(); ++it)
+          if (contains(*it, a))          // for the case of selects
+            { hardVar = *it; break; }
+        if (hardVar != NULL) break;
+      }
+
+      if (hardVar == NULL) continue;
+
+      for (auto it = eq->begin(); it != eq->end(); ++it)
+      {
+        ExprVector av;
+        filter (*it, IsConst (), inserter(av, av.begin()));
+        if (av.size() > 0 && emptyIntersect(av, hardVars) &&    // don't replace constants and hardVars
+            emptyIntersect(hardVar, removed) && IsConst()(*it))
+        {
+          removed.insert(*it);
+          res = replaceAll(res, *it, hardVar);
+          toRepeat = true;
+        }
+      }
+      free(eq);
+    }
+    res = simplifyBool(res);
+    if (toRepeat)
+    {
+      getConj(res, cnjs);
+      return simpEquivClasses(hardVars, cnjs, efac);
+    }
+    return res;
+  }
+
   template <typename T> static Expr convertIntsToReals (Expr exp);
 
   template <typename T> struct IntToReal
@@ -1610,6 +1845,33 @@ namespace ufo
     }
   }
 
+  bool isNonlinear(Expr e) {
+    int arity = e->arity();
+    if (isOpX<MOD>(e) || isOpX<DIV>(e) || isOpX<IDIV>(e)) {
+      ExprVector av;
+      filter (e->right(), IsConst (), inserter(av, av.begin()));
+      if (av.size() > 0) return true;
+      else return isNonlinear(e->left());
+    }
+    else if (isOpX<MULT>(e))
+    {
+      int numVars = 0;
+      for (int i = 0; i < arity; i++)
+      {
+        if (isNonlinear(e->arg(i))) return true;
+        ExprVector av;
+        filter (e->arg(i), IsConst (), inserter(av, av.begin()));
+        if (av.size() > 0) numVars++;
+      }
+      return (numVars > 1);
+    }
+    bool res = false;
+    for (int i = 0; i < arity; i++) {
+      res = res || isNonlinear(e->arg(i));
+    }
+    return res;
+  }
+
   struct QVMiner : public std::unary_function<Expr, VisitAction>
   {
     map<Expr, ExprVector>& vars;
@@ -1666,10 +1928,10 @@ namespace ufo
     return exp;
   }
 
-  inline static bool isNumericConst(Expr e)
-  {
-    return isOpX<MPZ>(e) || isOpX<MPQ>(e);
-  }
+  // inline static bool isNumericConst(Expr e)
+  // {
+  //   return isOpX<MPZ>(e) || isOpX<MPQ>(e);
+  // }
 
   static Expr rewriteMultAdd (Expr exp);
 
@@ -1866,9 +2128,17 @@ namespace ufo
   template<typename Range> static Expr simpleQE(Expr exp, Range& quantified)
   {
     ExprFactory& efac = exp->getFactory();
-    ExprSet cnjsSet;
+    ExprSet cnjsSet, dsjsSet;
+    getDisj(exp, dsjsSet);
+    if (dsjsSet.size() > 1)
+    {
+      ExprSet newDsjs;
+      for (auto & d : dsjsSet) newDsjs.insert(simpleQE(d, quantified));
+      return disjoin(newDsjs, efac);
+    }
     getConj(exp, cnjsSet);
     ExprVector cnjs;
+    ineqMerger(cnjsSet, true);
     cnjs.insert(cnjs.end(), cnjsSet.begin(), cnjsSet.end());
     for (auto & var : quantified)
     {
@@ -1891,27 +2161,25 @@ namespace ufo
         }
         else if (var == normalized->right())
         {
-          normalized = mk<EQ>(normalized->right(), normalized->left());
+          normalized = mk<EQ>(var, normalized->left());
         }
 
         // after the normalization, var can be eliminated
         if (!isOpX<EQ>(normalized) || !contains(normalized, var))
           { it++; continue;}
 
-        if (!contains (normalized->right(), var))
+        if (var == normalized->left())
         {
-          if (var == normalized->left())
-          {
-            eqs.insert(normalized->right());
-            cnjs.erase (cnjs.begin()+it);
-            continue;
-          }
-          else if (isOpX<MULT>(normalized->left()) && isOpX<MPZ>(normalized->left()->left()))
-          {
-            cnjs.push_back(mk<EQ>(mk<MOD>(normalized->right(), normalized->left()->left()),
-                               mkMPZ (0, efac)));
-          }
+          eqs.insert(normalized->right());
+          cnjs.erase (cnjs.begin()+it);
+          continue;
         }
+        else if (isOpX<MULT>(normalized->left()) && isOpX<MPZ>(normalized->left()->left()))
+        {
+          cnjs.push_back(mk<EQ>(mk<MOD>(normalized->right(), normalized->left()->left()),
+                             mkMPZ (0, efac)));
+        }
+        else { it++; continue;}
 
         if (store == NULL && containsOp<STORE>(normalized) && isOpX<EQ>(normalized) &&
             emptyIntersect(normalized->left(), quantified) &&

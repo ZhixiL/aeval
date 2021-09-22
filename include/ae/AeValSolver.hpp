@@ -1612,6 +1612,37 @@ namespace ufo
     else return mknary<EXISTS>(args);
   }
 
+  // inline static bool qeUnsupported (Expr e)
+  // {
+  //   if (containsOp<ARRAY_TY>(e)) return true;
+  //   if (containsOp<MOD>(e)) return true;
+  //   if (containsOp<DIV>(e)) return true;
+  //   return isNonlinear(e);
+  // }
+
+  // // Optimization for QE in case of EQ and constants
+  // template<typename Range> static Expr eliminateQuantifiers(Expr fla, Range& qVars, bool doArithm = true)
+  // {
+  //   if (qVars.size() == 0) return fla;
+  //   ExprSet dsjs, newDsjs;
+  //   getDisj(fla, dsjs);
+  //   if (dsjs.size() > 1)
+  //   {
+  //     for (auto & d : dsjs) newDsjs.insert(eliminateQuantifiers(d, qVars));
+  //     return disjoin(newDsjs, fla->getFactory());
+  //   }
+
+  //   ExprSet hardVars;
+  //   filter (fla, bind::IsConst (), inserter(hardVars, hardVars.begin()));
+  //   minusSets(hardVars, qVars);
+  //   ExprSet cnjs;
+  //   getConj(fla, cnjs);
+  //   constantPropagation(hardVars, cnjs, doArithm);
+  //   Expr tmp = simpEquivClasses(hardVars, cnjs, fla->getFactory());
+  //   tmp = simpleQE(tmp, qVars);
+  //   return coreQE(tmp, qVars);
+  // }
+
   /* GENERAL HELPER FUNCTIONS */
   //get a constant y with a type depend on given expression.
   Expr getConstYByInput(Expr s) 
@@ -2044,11 +2075,29 @@ namespace ufo
     // formula simplification
     t = simplifyBool(t);
     ExprSet cnjs;
-    ExprVector empt;
+    // ExprVector empt;
+    // simplBoolReplCnj(empt, cnjs);
+
+    // outs() << "t before: " << t << endl;
+    // for (auto temp : t_quantified) outs() << temp;
+    // outs() << endl;
+
+    ExprSet hardVars;
+    filter (t, bind::IsConst (), inserter(hardVars, hardVars.begin()));
     getConj(t, cnjs);
-    simplBoolReplCnj(empt, cnjs);
+    minusSets(hardVars, t_quantified);
+    constantPropagation(hardVars, cnjs, true);
+    Expr tmp = simpEquivClasses(hardVars, cnjs, t->getFactory());
+    tmp = simpleQE(t, t_quantified);
+    ExprSet tmp_cnjs;
+    getConj(tmp, tmp_cnjs);
+    for (auto tmp_cnj : tmp_cnjs) cnjs.insert(tmp_cnj);
     t = conjoin(cnjs, t->getFactory());
     t = simplifyBool(t);
+
+    // outs() << "t: " << t << endl;
+    // outs() << "temp: " << tmp << endl;
+
 
     if (debug && false) // outTest
     // if (true)
