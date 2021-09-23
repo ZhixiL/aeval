@@ -2044,6 +2044,7 @@ namespace ufo
    */
   inline void aeSolveAndSkolemize(Expr s, Expr t, bool skol, bool debug, bool compact, bool split)
   {
+    outs() << "t at beginning of aeSolveAndSkolemize" << t << endl;
     ExprSet t_quantified;
     if (t == NULL)
     {
@@ -2074,29 +2075,36 @@ namespace ufo
 
     // formula simplification
     t = simplifyBool(t);
-    ExprSet cnjs;
     // ExprVector empt;
     // simplBoolReplCnj(empt, cnjs);
 
-    // outs() << "t before: " << t << endl;
-    // for (auto temp : t_quantified) outs() << temp;
-    // outs() << endl;
+    outs() << "t is filtered and convertIntsToReals" << endl;
+    outs() << "t before imported methods: " << t << endl << "t_quantified: ";
+    for (auto temp : t_quantified) outs() << temp;
+    outs() << endl << endl;
 
-    ExprSet hardVars;
+    ExprSet hardVars, cnjs;
     filter (t, bind::IsConst (), inserter(hardVars, hardVars.begin()));
+    outs() << "Filtered t: " << t << endl;
     getConj(t, cnjs);
     minusSets(hardVars, t_quantified);
+
     constantPropagation(hardVars, cnjs, true);
+    outs() << "cnjs After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl << endl;
+
     Expr tmp = simpEquivClasses(hardVars, cnjs, t->getFactory());
-    tmp = simpleQE(t, t_quantified);
+    outs() << "cnjs After simpEquivClasses: " << conjoin(cnjs, t->getFactory()) << endl;
+    outs() << "tmp after simpEquivClasses with hardVars & cnjs: " << tmp << endl << endl;
+    tmp = simpleQE(tmp, t_quantified);
+    outs() << "tmp after simpleQE: " << tmp << endl;
     ExprSet tmp_cnjs;
     getConj(tmp, tmp_cnjs);
+
     for (auto tmp_cnj : tmp_cnjs) cnjs.insert(tmp_cnj);
     t = conjoin(cnjs, t->getFactory());
     t = simplifyBool(t);
 
-    // outs() << "t: " << t << endl;
-    // outs() << "temp: " << tmp << endl;
+    outs() << "Final t: " << t << endl << endl << endl;
 
 
     if (debug && false) // outTest
