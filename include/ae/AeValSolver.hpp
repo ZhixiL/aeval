@@ -2065,46 +2065,49 @@ namespace ufo
       filter (s, bind::IsConst (), inserter (s_vars, s_vars.begin()));
       filter (t, bind::IsConst (), inserter (t_vars, t_vars.begin()));
 
-      t_quantified = minusSets(t_vars, s_vars);
+      // for (auto t : t_vars) t_quantified.insert(t);
+      t_quantified = t_vars;
+      minusSets(t_quantified, s_vars);
     }
 
     s = convertIntsToReals<DIV>(s);
     t = convertIntsToReals<DIV>(t);
 
+    SMTUtils u1(s->getFactory()); //for future t equivalence test.
+
     Expr t_orig = t;
-
-    // formula simplification
     t = simplifyBool(t);
-    // ExprVector empt;
-    // simplBoolReplCnj(empt, cnjs);
-
-    outs() << "t is filtered and convertIntsToReals" << endl;
-    outs() << "t before imported methods: " << t << endl << "t_quantified: ";
-    for (auto temp : t_quantified) outs() << temp;
-    outs() << endl << endl;
-
     ExprSet hardVars, cnjs;
     filter (t, bind::IsConst (), inserter(hardVars, hardVars.begin()));
-    outs() << "Filtered t: " << t << endl;
+    outs() << "\nt after simplifyBool: " << t << endl;
+    outs() << "t_quantified: " << conjoin(t_quantified, t->getFactory()) << endl;
+    outs() << "hardVars: " << conjoin(hardVars, t->getFactory()) << endl;
+    outs() << "sanity check t after simplifyBool: " << u1.implies(t, t_orig) << u1.implies(t_orig, t) << "\n"; //sanity check
+
     getConj(t, cnjs);
     minusSets(hardVars, t_quantified);
-
+    outs() << "hardVars after minusSets: " << conjoin(hardVars, t->getFactory()) << endl;
+    
     constantPropagation(hardVars, cnjs, true);
-    outs() << "cnjs After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl << endl;
+    outs() << "\ncnjs After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
+    outs() << "sanity check t after constantPropagation: " 
+           << u1.implies(conjoin(cnjs, t->getFactory()), t_orig) 
+           << u1.implies(t_orig, conjoin(cnjs, t->getFactory())) << "\n"; //sanity check
 
     Expr tmp = simpEquivClasses(hardVars, cnjs, t->getFactory());
-    outs() << "cnjs After simpEquivClasses: " << conjoin(cnjs, t->getFactory()) << endl;
-    outs() << "tmp after simpEquivClasses with hardVars & cnjs: " << tmp << endl << endl;
-    tmp = simpleQE(tmp, t_quantified);
-    outs() << "tmp after simpleQE: " << tmp << endl;
-    ExprSet tmp_cnjs;
-    getConj(tmp, tmp_cnjs);
+    outs() << "\ncnjs After simpEquivClasses: " << conjoin(cnjs, t->getFactory()) << endl;
+    outs() << "tmp after simpEquivClasses with hardVars & cnjs: " << tmp << endl;
+    outs() << "sanity check tmp: " << u1.implies(tmp, t_orig) << u1.implies(t_orig, tmp) << "\n"; 
 
-    for (auto tmp_cnj : tmp_cnjs) cnjs.insert(tmp_cnj);
-    t = conjoin(cnjs, t->getFactory());
+    tmp = simpleQE(tmp, t_quantified);
+    outs() << "\ntmp after simpleQE: " << tmp << endl;
+    outs() << "sanity check tmp: " << u1.implies(tmp, t_orig) << u1.implies(t_orig, tmp) << "\n"; 
+
+    t = tmp; // since tmp has inherited from cnjs since simpEquivClasses and modified from there
     t = simplifyBool(t);
 
-    outs() << "Final t: " << t << endl << endl << endl;
+    outs() << "\nFinal t: " << t << endl;
+    outs() << "sanity check final t: " << u1.implies(t, t_orig) << u1.implies(t_orig, t) << "\n\n\n"; 
 
 
     if (debug && false) // outTest
@@ -2161,7 +2164,9 @@ namespace ufo
     filter (s, bind::IsConst (), inserter (s_vars, s_vars.begin()));
     filter (t, bind::IsConst (), inserter (t_vars, t_vars.begin()));
 
-    ExprSet t_quantified = minusSets(t_vars, s_vars);
+    ExprSet t_quantified = t_vars;
+    // for (auto t : t_vars) t_quantified.insert(t);
+    minusSets(t_quantified, s_vars);
 
     s = convertIntsToReals<DIV>(s);
     t = convertIntsToReals<DIV>(t);

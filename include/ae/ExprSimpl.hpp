@@ -1732,17 +1732,26 @@ namespace ufo
     return dagVisit (rw, exp);
   }
 
-  inline static ExprSet minusSets(ExprSet& v1, ExprSet& v2){
-    ExprSet v3;
-    bool res;
-    for (auto &var1: v1){
-      res = true;
-      for (auto &var2: v2){
-        if (var1 == var2) { res = false; break;}
-      }
-      if (res) v3.insert(var1);
+  // inline static ExprSet minusSets(ExprSet& v1, ExprSet& v2){
+  //   ExprSet v3;
+  //   bool res;
+  //   for (auto &var1: v1){
+  //     res = true;
+  //     for (auto &var2: v2){
+  //       if (var1 == var2) { res = false; break;}
+  //     }
+  //     if (res) v3.insert(var1);
+  //   }
+  //   return v3;
+  // }
+
+  // rewrites v1 to contain v1 \ v2
+  template<typename Range> static void minusSets(ExprSet& v1, Range& v2){
+    for (auto it = v1.begin(); it != v1.end(); ){
+      if (find(v2.begin(), v2.end(), *it) != v2.end())
+        it = v1.erase(it);
+      else ++it;
     }
-    return v3;
   }
 
   /**
