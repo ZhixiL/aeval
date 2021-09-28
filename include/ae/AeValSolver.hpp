@@ -1612,6 +1612,18 @@ namespace ufo
     else return mknary<EXISTS>(args);
   }
 
+  // overloaded create quantifiers that takes in ExprSet of vars.
+  Expr static createQuantifiedFormulaRestr (Expr def, ExprSet& vars, bool forall = false)
+  {
+    if (vars.empty()) return def;
+    ExprVector args;
+    for (auto & a : vars) args.push_back(a->last());
+    args.push_back(def);
+    if (forall) return mknary<FORALL>(args);
+    else return mknary<EXISTS>(args);
+  }
+
+
   // inline static bool qeUnsupported (Expr e)
   // {
   //   if (containsOp<ARRAY_TY>(e)) return true;
@@ -2090,20 +2102,23 @@ namespace ufo
     
     constantPropagation(hardVars, cnjs, true);
     outs() << "\ncnjs After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
+    Expr t_qua = createQuantifiedFormulaRestr(conjoin(cnjs, t->getFactory()), t_quantified);
+    outs() << "t_qua (After applying quantifiers): " << t_qua << endl;
     outs() << "sanity check t after constantPropagation: " 
-           << u1.implies(conjoin(cnjs, t->getFactory()), t_orig) 
-           << u1.implies(t_orig, conjoin(cnjs, t->getFactory())) << "\n"; //sanity check
+           << u1.implies(t_qua, t_orig) << u1.implies(t_orig, t_qua) << "\n"; //sanity check
 
-    Expr tmp = simpEquivClasses(hardVars, cnjs, t->getFactory());
-    outs() << "\ncnjs After simpEquivClasses: " << conjoin(cnjs, t->getFactory()) << endl;
-    outs() << "tmp after simpEquivClasses with hardVars & cnjs: " << tmp << endl;
-    outs() << "sanity check tmp: " << u1.implies(tmp, t_orig) << u1.implies(t_orig, tmp) << "\n"; 
+    // Expr tmp = simpEquivClasses(hardVars, cnjs, t->getFactory());
+    // outs() << "\ncnjs After simpEq`uivClasses: " << conjoin(cnjs, t->getFactory()) << endl;
+    // outs() << "tmp after simpEquivClasses with hardVars & cnjs: " << tmp << endl;
+    // outs() << "sanity check tmp: " << u1.implies(tmp, t_orig) << u1.implies(t_orig, tmp) << "\n"; 
+    
+    t = simpleQE(conjoin(cnjs, t->getFactory()), t_quantified);
+    outs() << "\nt after simpleQE with conjoined cnjs: " << t << endl;
+    t_qua = createQuantifiedFormulaRestr(t, t_quantified);
+    outs() << "t_qua: " << t_qua << endl;
+    outs() << "sanity check t: " << u1.implies(t_qua, t_orig) << u1.implies(t_orig, t_qua) << "\n"; 
 
-    tmp = simpleQE(tmp, t_quantified);
-    outs() << "\ntmp after simpleQE: " << tmp << endl;
-    outs() << "sanity check tmp: " << u1.implies(tmp, t_orig) << u1.implies(t_orig, tmp) << "\n"; 
-
-    t = tmp; // since tmp has inherited from cnjs since simpEquivClasses and modified from there
+    // t = tmp; // since tmp has inherited from cnjs since simpEquivClasses and modified from there
     t = simplifyBool(t);
 
     outs() << "\nFinal t: " << t << endl;
