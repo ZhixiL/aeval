@@ -1624,37 +1624,6 @@ namespace ufo
   }
 
 
-  // inline static bool qeUnsupported (Expr e)
-  // {
-  //   if (containsOp<ARRAY_TY>(e)) return true;
-  //   if (containsOp<MOD>(e)) return true;
-  //   if (containsOp<DIV>(e)) return true;
-  //   return isNonlinear(e);
-  // }
-
-  // // Optimization for QE in case of EQ and constants
-  // template<typename Range> static Expr eliminateQuantifiers(Expr fla, Range& qVars, bool doArithm = true)
-  // {
-  //   if (qVars.size() == 0) return fla;
-  //   ExprSet dsjs, newDsjs;
-  //   getDisj(fla, dsjs);
-  //   if (dsjs.size() > 1)
-  //   {
-  //     for (auto & d : dsjs) newDsjs.insert(eliminateQuantifiers(d, qVars));
-  //     return disjoin(newDsjs, fla->getFactory());
-  //   }
-
-  //   ExprSet hardVars;
-  //   filter (fla, bind::IsConst (), inserter(hardVars, hardVars.begin()));
-  //   minusSets(hardVars, qVars);
-  //   ExprSet cnjs;
-  //   getConj(fla, cnjs);
-  //   constantPropagation(hardVars, cnjs, doArithm);
-  //   Expr tmp = simpEquivClasses(hardVars, cnjs, fla->getFactory());
-  //   tmp = simpleQE(tmp, qVars);
-  //   return coreQE(tmp, qVars);
-  // }
-
   /* GENERAL HELPER FUNCTIONS */
   //get a constant y with a type depend on given expression.
   Expr getConstYByInput(Expr s) 
@@ -2090,7 +2059,7 @@ namespace ufo
     Expr t_orig = t;
     Expr t_orig_qua = createQuantifiedFormulaRestr(t_orig, t_quantified);
     outs() << "original t after applying quantifiers: " << t_orig_qua << endl << endl;
-    
+
     t = simplifyBool(t);
     ExprSet hardVars, cnjs;
     filter (t, bind::IsConst (), inserter(hardVars, hardVars.begin()));
@@ -2105,7 +2074,9 @@ namespace ufo
     minusSets(hardVars, t_quantified);
     outs() << "hardVars after minusSets: " << conjoin(hardVars, t->getFactory()) << endl;
     
-    constantPropagation(hardVars, cnjs, true);
+    ExprSet elimSkol; // eliminated skolems
+    constantPropagation(hardVars, cnjs, elimSkol, true);
+    outs() << "elimSkol: " << conjoin(elimSkol, t->getFactory()) << endl;
     t_qua = createQuantifiedFormulaRestr(conjoin(cnjs, t->getFactory()), t_quantified);
     outs() << "\ncnjs After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
     outs() << "t_qua (After applying quantifiers): " << t_qua << endl;
@@ -2123,12 +2094,12 @@ namespace ufo
     outs() << "t_qua: " << t_qua << endl;
     outs() << "sanity check t: " << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; 
 
-    // t = tmp; // since tmp has inherited from cnjs since simpEquivClasses and modified from there
+    // t = tmp; 
     t = simplifyBool(t);
-
     outs() << "\nFinal t: " << t << endl;
-    outs() << "sanity check final t: " << u1.implies(t, t_orig_qua) << u1.implies(t_orig_qua, t) << "\n\n\n"; 
-
+    outs() << "sanity check final t: " << u1.implies(t, t_orig_qua) << u1.implies(t_orig_qua, t) << "\n\n\n";
+    
+    exit(0);
 
     if (debug && false) // outTest
     // if (true)
