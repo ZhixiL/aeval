@@ -1549,7 +1549,6 @@ namespace ufo
 
       ExprSet splitted;
       getConj(a, splitted);
-
       for (auto c : splitted)
       {
         if (isOpX<NEG>(c) && !isBoolConst(c->left()))
@@ -1601,7 +1600,6 @@ namespace ufo
         else
           toInsert.insert(c);
       }
-
       it = cnjs.erase(it);
     }
 
@@ -1621,10 +1619,15 @@ namespace ufo
   }
 
   // simplification based on boolean replacements
-  template<typename Range> static void constantPropagation(Range& hardVars, ExprSet& cnjs, bool doArithm = true)
+  template<typename Range> static void constantPropagation(Range& hardVars, ExprSet& cnjs, ExprSet& elimSkol, bool doArithm = true)
   {
     ExprMap repls;
     constantPropagationRec(hardVars, cnjs, repls, doArithm);
+    for (auto pair : repls)
+    {
+      outs() << "first: " << pair.first << "\tsecond: " << pair.second << endl;
+      elimSkol.insert(mk<EQ>(pair.first, pair.second));
+    }
   }
 
   // simplification based on equivalence classes
@@ -2089,7 +2092,6 @@ namespace ufo
 
   inline Expr rewriteModConstraints(Expr fla)
   {
-    
     // heuristic for the divisibility constraints
     assert (isOp<ComparissonOp>(fla));
     ExprVector plusOpsLeft;
