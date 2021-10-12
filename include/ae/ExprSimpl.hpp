@@ -1623,11 +1623,13 @@ namespace ufo
   {
     ExprMap repls;
     constantPropagationRec(hardVars, cnjs, repls, doArithm);
+    outs() << "pairs that are gonna be added to elimSkol:\n";
     for (auto pair : repls)
     {
-      outs() << "first: " << pair.first << "\tsecond: " << pair.second << endl;
+      outs() << "\tfirst: " << pair.first << "\tsecond: " << pair.second << endl;
       elimSkol.insert(mk<EQ>(pair.first, pair.second));
     }
+    outs() << "\n";
   }
 
   // simplification based on equivalence classes

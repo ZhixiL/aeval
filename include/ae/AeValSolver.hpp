@@ -2078,7 +2078,7 @@ namespace ufo
     constantPropagation(hardVars, cnjs, elimSkol, true);
     outs() << "elimSkol: " << conjoin(elimSkol, t->getFactory()) << endl;
     t_qua = createQuantifiedFormulaRestr(conjoin(cnjs, t->getFactory()), t_quantified);
-    outs() << "\ncnjs After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
+    outs() << "\ncnjs(t) After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
     outs() << "t_qua (After applying quantifiers): " << t_qua << endl;
     outs() << "sanity check t after constantPropagation: " 
            << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; //sanity check
@@ -2099,7 +2099,7 @@ namespace ufo
     outs() << "\nFinal t: " << t << endl;
     outs() << "sanity check final t: " << u1.implies(t, t_orig_qua) << u1.implies(t_orig_qua, t) << "\n\n\n";
     
-    exit(0);
+    // exit(0);
 
     if (debug && false) // outTest
     // if (true)
@@ -2127,12 +2127,18 @@ namespace ufo
         Expr skol = ae.getSkolemFunction(compact);
         if (split)
         {
+          outs() << "\telimSkol: " << conjoin(elimSkol, s->getFactory()) << endl;
           ExprVector sepSkols;
           for (auto & evar : t_quantified) sepSkols.push_back(mk<EQ>(evar,
                            simplifyBool(simplifyArithm(ae.getSeparateSkol(evar)))));
+          for (auto t : elimSkol) sepSkols.push_back(t);
           u.serialize_formula(sepSkols);
-          if (debug) outs () << "Sanity check [split]: " <<
-            u.implies(mk<AND>(s, conjoin(sepSkols, s->getFactory())), t_orig) << "\n";
+          if (debug) 
+          {
+            for (auto t : elimSkol) sepSkols.push_back(t);
+            outs () << "Sanity check [split]: " <<
+              u.implies(mk<AND>(s, conjoin(sepSkols, s->getFactory())), t_orig) << "\n";
+          }
           
           // u.outSanCheck("extractedSanChecks/multEx10.smt2");
         }
