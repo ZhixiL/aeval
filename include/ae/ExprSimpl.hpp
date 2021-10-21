@@ -1623,10 +1623,10 @@ namespace ufo
   {
     ExprMap repls;
     constantPropagationRec(hardVars, cnjs, repls, doArithm);
-    outs() << "pairs that are gonna be added to elimSkol:\n";
+    // outs() << "pairs that are gonna be added to elimSkol:\n";
     for (auto pair : repls)
     {
-      outs() << "\tfirst: " << pair.first << "\tsecond: " << pair.second << endl;
+      // outs() << "\tfirst: " << pair.first << "\tsecond: " << pair.second << endl;
       elimSkol.insert(mk<EQ>(pair.first, pair.second));
     }
     outs() << "\n";
@@ -2138,7 +2138,7 @@ namespace ufo
   }
 
   // rewrite just equalities
-  template<typename Range> static Expr simpleQE(Expr exp, Range& quantified)
+  template<typename Range> static Expr simpleQE(Expr exp, ExprSet& elimSkol, Range& quantified)
   {
     ExprFactory& efac = exp->getFactory();
     ExprSet cnjsSet, dsjsSet;
@@ -2146,7 +2146,7 @@ namespace ufo
     if (dsjsSet.size() > 1)
     {
       ExprSet newDsjs;
-      for (auto & d : dsjsSet) newDsjs.insert(simpleQE(d, quantified));
+      for (auto & d : dsjsSet) newDsjs.insert(simpleQE(d, elimSkol, quantified));
       return disjoin(newDsjs, efac);
     }
     getConj(exp, cnjsSet);
@@ -2184,6 +2184,8 @@ namespace ufo
         if (var == normalized->left())
         {
           eqs.insert(normalized->right());
+          // outs() << "\terased from SimpleQE: " << *(cnjs.begin()+it) << endl; //outtest
+          elimSkol.insert(*(cnjs.begin()+it));
           cnjs.erase (cnjs.begin()+it);
           continue;
         }

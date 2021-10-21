@@ -2058,46 +2058,46 @@ namespace ufo
 
     Expr t_orig = t;
     Expr t_orig_qua = createQuantifiedFormulaRestr(t_orig, t_quantified);
-    outs() << "original t after applying quantifiers: " << t_orig_qua << endl << endl;
+    // outs() << "original t after applying quantifiers: " << t_orig_qua << endl << endl;
 
     t = simplifyBool(t);
     ExprSet hardVars, cnjs;
     filter (t, bind::IsConst (), inserter(hardVars, hardVars.begin()));
     Expr t_qua = createQuantifiedFormulaRestr(t, t_quantified);
-    outs() << "\nt after simplifyBool: " << t << endl;
-    outs() << "t_quantified: " << conjoin(t_quantified, t->getFactory()) << endl;
-    outs() << "hardVars: " << conjoin(hardVars, t->getFactory()) << endl;
-    outs() << "t_qua (t After applying quantifiers): " << t_qua << endl;
-    outs() << "sanity check t after simplifyBool: " << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; //sanity check
+    // outs() << "\nt after simplifyBool: " << t << endl;
+    // outs() << "t_quantified: " << conjoin(t_quantified, t->getFactory()) << endl;
+    // outs() << "hardVars: " << conjoin(hardVars, t->getFactory()) << endl;
+    // outs() << "t_qua (t After applying quantifiers): " << t_qua << endl;
+    // outs() << "sanity check t after simplifyBool: " << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; //sanity check
 
     getConj(t, cnjs);
     minusSets(hardVars, t_quantified);
-    outs() << "hardVars after minusSets: " << conjoin(hardVars, t->getFactory()) << endl;
+    // outs() << "hardVars after minusSets: " << conjoin(hardVars, t->getFactory()) << endl;
     
     ExprSet elimSkol; // eliminated skolems
     constantPropagation(hardVars, cnjs, elimSkol, true);
-    outs() << "elimSkol: " << conjoin(elimSkol, t->getFactory()) << endl;
-    t_qua = createQuantifiedFormulaRestr(conjoin(cnjs, t->getFactory()), t_quantified);
-    outs() << "\ncnjs(t) After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
-    outs() << "t_qua (After applying quantifiers): " << t_qua << endl;
-    outs() << "sanity check t after constantPropagation: " 
-           << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; //sanity check
+    // outs() << "elimSkol: " << conjoin(elimSkol, t->getFactory()) << endl;
+    // t_qua = createQuantifiedFormulaRestr(conjoin(cnjs, t->getFactory()), t_quantified);
+    // outs() << "\ncnjs(t) After constantPropagation: " << conjoin(cnjs, t->getFactory()) << endl;
+    // outs() << "t_qua (After applying quantifiers): " << t_qua << endl;
+    // outs() << "sanity check t after constantPropagation: " 
+    //        << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; //sanity check
 
     // Expr tmp = simpEquivClasses(hardVars, cnjs, t->getFactory());
     // outs() << "\ncnjs After simpEq`uivClasses: " << conjoin(cnjs, t->getFactory()) << endl;
     // outs() << "tmp after simpEquivClasses with hardVars & cnjs: " << tmp << endl;
     // outs() << "sanity check tmp: " << u1.implies(tmp, t_orig) << u1.implies(t_orig, tmp) << "\n"; 
     
-    t = simpleQE(conjoin(cnjs, t->getFactory()), t_quantified);
-    outs() << "\nt after simpleQE with conjoined cnjs: " << t << endl;
-    t_qua = createQuantifiedFormulaRestr(t, t_quantified);
-    outs() << "t_qua: " << t_qua << endl;
-    outs() << "sanity check t: " << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; 
+    t = simpleQE(conjoin(cnjs, t->getFactory()), t_quantified, elimSkol);
+    // outs() << "\nt after simpleQE with conjoined cnjs: " << t << endl;
+    // t_qua = createQuantifiedFormulaRestr(t, t_quantified);
+    // outs() << "t_qua: " << t_qua << endl;
+    // outs() << "sanity check t: " << u1.implies(t_qua, t_orig_qua) << u1.implies(t_orig_qua, t_qua) << "\n"; 
 
     // t = tmp; 
     t = simplifyBool(t);
-    outs() << "\nFinal t: " << t << endl;
-    outs() << "sanity check final t: " << u1.implies(t, t_orig_qua) << u1.implies(t_orig_qua, t) << "\n\n\n";
+    // outs() << "\nFinal t: " << t << endl;
+    // outs() << "sanity check final t: " << u1.implies(t, t_orig_qua) << u1.implies(t_orig_qua, t) << "\n\n\n";
     
     // exit(0);
 
